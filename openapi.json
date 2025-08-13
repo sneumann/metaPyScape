@@ -1,0 +1,2309 @@
+{
+  "openapi" : "3.0.1",
+  "info" : {
+    "title" : "MetaboScape REST Application",
+    "contact" : { },
+    "license" : {
+      "name" : "MIT License",
+      "url" : "https://www.bruker.com"
+    },
+    "version" : "2025b"
+  },
+  "paths" : {
+    "/ccspredict/models" : {
+      "get" : {
+        "tags" : [ "/ccspredict" ],
+        "summary" : "Returns a list of all available CCS Prediction models",
+        "operationId" : "listCcsPredictModels",
+        "responses" : {
+          "200" : {
+            "description" : "Request accepted.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/ModelMetaInfo"
+                  }
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "An internal server error occured.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ccspredict/models/{modelId}" : {
+      "post" : {
+        "tags" : [ "/ccspredict" ],
+        "summary" : "Predict CCS value for a given structure",
+        "description" : "This endpoint predicts a CCS (Collision Cross Section) value for a given structure. It uses the CCS-Predict model specified by the 'modelId' path parameter. The model is retrieved from the Model Meta Information, which can be obtained through the '/ccspredict/models' endpoint. Please copy the structure type identifiers from the Model Meta Information.",
+        "operationId" : "predictCcs",
+        "parameters" : [ {
+          "name" : "modelId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "*/*" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/Structure"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Request accepted",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/CCSPredictResult"
+                  }
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "An internal server error occured.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/featuretable/{featureTableId}/eicsandeims/create" : {
+      "post" : {
+        "tags" : [ "/featuretable" ],
+        "summary" : "Generate new EICs and EIMs for a specific Feature Table",
+        "description" : "This operation generates new Extracted Ion Chromatograms (EICs) and Extracted Ion Mobilograms (EIMs) for a specific Feature Table identified by the 'featureTableId' path parameter. The 'featureIds' parameter specifies the features for which the EICs and EIMs are to be generated.",
+        "operationId" : "generateNewEicsAndEims",
+        "parameters" : [ {
+          "name" : "featureTableId",
+          "in" : "path",
+          "description" : "The unique identifier of the Feature Table for which the EICs and EIMs are to be generated.",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "description" : "The identifiers of the features for which the EICs and EIMs are to be generated.",
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "array",
+                "items" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Successful operation, the new EICs and EIMs are generated.",
+            "content" : {
+              "application/json" : { }
+            }
+          },
+          "500" : {
+            "description" : "An internal server error occurred. Returns an 'ErrorResponse' object with details about the error.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/featuretable/feature/{featureId}/eics" : {
+      "get" : {
+        "tags" : [ "/featuretable" ],
+        "summary" : "Retrieve EICs for a specific feature",
+        "description" : "This operation retrieves Extracted Ion Chromatograms (EICs) for a specific feature identified by the 'featureId' path parameter.",
+        "operationId" : "retrieveEicsForFeature",
+        "parameters" : [ {
+          "name" : "featureId",
+          "in" : "path",
+          "description" : "The unique identifier of the feature for which the EICs are to be retrieved.",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful operation, the EICs for the specified feature are retrieved.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/FeatureEics"
+                  }
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "An internal server error occurred. Returns an 'ErrorResponse' object with details about the error.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/featuretable/feature/{featureId}/eims" : {
+      "get" : {
+        "tags" : [ "/featuretable" ],
+        "summary" : "Retrieve EIMs for a specific feature",
+        "description" : "This operation retrieves Extracted Ion Mobilograms (EIMs) for a specific feature identified by the 'featureId' path parameter.",
+        "operationId" : "retrieveEimsForFeature",
+        "parameters" : [ {
+          "name" : "featureId",
+          "in" : "path",
+          "description" : "The unique identifier of the feature for which the EIMs are to be retrieved.",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful operation, the EIMs for the specified feature are retrieved.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/FeatureEims"
+                  }
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "An internal server error occurred. Returns an 'ErrorResponse' object with details about the error.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/experiments/create" : {
+      "post" : {
+        "tags" : [ "/experiments" ],
+        "summary" : "Create a new experiment",
+        "description" : "This operation initiates the creation of an experiment by processing the provided project YAML. This YAML should define the project id and details about the experiment and feature table to be created.",
+        "operationId" : "createExperiment",
+        "requestBody" : {
+          "description" : "The YAML file that references a project, and defines the structure of one experiment and one Feature Table. The Project ID is mandatory to create an experiment!",
+          "content" : {
+            "text/plain" : {
+              "schema" : {
+                "type" : "string"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "202" : {
+            "description" : "Data processing task succesfully initiated. The response will include details (names and identifiers) about the created project, associated experiments, feature tables, and the ID of the started task.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProjectTaskSummary"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error. This can be due to invalid YAML structure, server misconfiguration, or other unexpected issues.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/featuretable/create" : {
+      "post" : {
+        "tags" : [ "/featuretable" ],
+        "summary" : "Create a new Feature Table based on a project file",
+        "description" : "This operation creates a new Feature Table based on the details provided in the 'projectFile' parameter. The returned data is in JSON format.",
+        "operationId" : "createFeatureTable",
+        "requestBody" : {
+          "description" : "The YAML file that references a project and experiment, and defines the structure of one Feature Table. The Project ID and Experiment ID are mandatory to create a Feature Table!",
+          "content" : {
+            "text/plain" : {
+              "schema" : {
+                "type" : "string"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "202" : {
+            "description" : "Successful operation, returns a 'ProjectTaskSummary' object with details about the created Feature Table.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProjectTaskSummary"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "An internal server error occurred. Returns an 'ErrorResponse' object with details about the error.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/featuretable/feature/{featureId}" : {
+      "get" : {
+        "tags" : [ "/featuretable" ],
+        "summary" : "Retrieve a specific Feature based on its ID",
+        "description" : "This operation retrieves a specific Feature identified by the 'featureId' path parameter. The returned data is in JSON format.",
+        "operationId" : "retrieveFeature",
+        "parameters" : [ {
+          "name" : "featureId",
+          "in" : "path",
+          "description" : "The unique identifier of the Feature to be retrieved.",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful operation, returns the Feature of the specified ID.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Feature"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "An internal server error occurred. Returns an 'ErrorResponse' object with details about the error.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/featuretable/{featureTableId}" : {
+      "get" : {
+        "tags" : [ "/featuretable" ],
+        "summary" : "Fetches a specific Feature Table based on its ID",
+        "description" : "This operation fetches a specific Feature Table identified by the 'featureTableId' path parameter. The returned data is in JSON format and contains an array of 'Feature' objects.",
+        "operationId" : "retrieveFeatureTable",
+        "parameters" : [ {
+          "name" : "featureTableId",
+          "in" : "path",
+          "description" : "The unique identifier of the Feature Table to be retrieved.",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful operation, returns an array of 'Feature' objects belonging to the specified Feature Table.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/Feature"
+                  }
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "An internal server error occurred. Returns an 'ErrorResponse' object with details about the error.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/featuretable/intensitymatrix/{featureTableId}" : {
+      "get" : {
+        "tags" : [ "/featuretable" ],
+        "summary" : "Retrieve a intensity matrix of a Feature Table based on its ID",
+        "description" : "Retrieve the intensity matrix of a Feature Table (i.e. a 2D array of intensities with dimensions based on the indices of Features and Analyses) identified by the 'featureTableId' path parameter. The returned data is in JSON format.",
+        "operationId" : "retrieveIntensityMatrix",
+        "parameters" : [ {
+          "name" : "featureTableId",
+          "in" : "path",
+          "description" : "The unique identifier of the Feature Table whose intensity matrix is to be retrieved.",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful operation, returns the intensity matrix of the specified Feature Table.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FeatureMatrix"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "An internal server error occurred. Returns an 'ErrorResponse' object with details about the error.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/featuretable/feature/{featureId}/annotation/create" : {
+      "post" : {
+        "tags" : [ "/featuretable" ],
+        "summary" : "Create a custom annotation for a specific feature",
+        "description" : "With this operation, an annotation from any custom annotation outside of MetaboScape can be created for a Feature with a given 'featureId'. The 'candidate' parameter specifies the annotation candidate to be created. The annotation tool will be defined as \"External\" in MetaboScape.",
+        "operationId" : "createAnnotation",
+        "parameters" : [ {
+          "name" : "featureId",
+          "in" : "path",
+          "description" : "The unique identifier of the feature for which the annotation is to be created.",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "description" : "The annotation candidate to be created.",
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AnnotationCandidate"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Successful operation, the annotation is created.",
+            "content" : {
+              "application/json" : { }
+            }
+          },
+          "500" : {
+            "description" : "An internal server error occurred. Returns an 'ErrorResponse' object with details about the error.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/featuretable/feature/{featureId}/annotation/delete/{annotationId}" : {
+      "post" : {
+        "tags" : [ "/featuretable" ],
+        "summary" : "Delete a specific annotation for a specific feature",
+        "description" : "This operation deletes a specific annotation for a specific feature identified by the 'featureId' path parameter. The parameter 'annotationId' determines the annotation to be deleted. Not all annotations for the feature are deleted.",
+        "operationId" : "deleteAnnotation",
+        "parameters" : [ {
+          "name" : "featureId",
+          "in" : "path",
+          "description" : "The unique identifier of the feature for which the annotation is to be deleted.",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "annotationId",
+          "in" : "path",
+          "description" : "The unique identifier of the annotation to be deleted.",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Successful operation, the annotation is deleted.",
+            "content" : {
+              "application/json" : { }
+            }
+          },
+          "500" : {
+            "description" : "An internal server error occurred. Returns an 'ErrorResponse' object with details about the error.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/featuretable/annotation/configuration/{configurationId}" : {
+      "get" : {
+        "tags" : [ "/featuretable" ],
+        "summary" : "Retrieve Annotation Configuration by ID",
+        "description" : "This operation retrieves an Annotation Configuration identified by the 'configurationId' path parameter.",
+        "operationId" : "retrieveAnnotationConfigurationById",
+        "parameters" : [ {
+          "name" : "configurationId",
+          "in" : "path",
+          "description" : "The unique identifier of the Annotation Configuration to be retrieved.",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful operation, the Annotation Configuration is retrieved.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AnnotationToolConfiguration"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "An internal server error occurred. Returns an 'ErrorResponse' object with details about the error.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/featuretable/{featureTableId}/annotation/configuration/save" : {
+      "post" : {
+        "tags" : [ "/featuretable" ],
+        "summary" : "Save a new Annotation Configuration for a specific Feature Table",
+        "description" : "This operation saves a new Annotation Configuration for a specific Feature Table identified by the 'featureTableId' path parameter. The 'config' parameter specifies the Annotation Configuration to be saved.",
+        "operationId" : "saveNewAnnotationConfiguration",
+        "parameters" : [ {
+          "name" : "featureTableId",
+          "in" : "path",
+          "description" : "The unique identifier of the Feature Table for which the Annotation Configuration is to be saved.",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "description" : "The Annotation Configuration to be saved.",
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AnnotationToolConfiguration"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Successful operation, the new Annotation Configuration is saved and the Annotation Configuration UUID provided.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "An internal server error occurred. Returns an 'ErrorResponse' object with details about the error.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/featuretable/annotation/create/lipidspecies/{annotationMethodUuid}" : {
+      "post" : {
+        "tags" : [ "/featuretable" ],
+        "summary" : "Create Lipid Species Annotations with Method",
+        "description" : "This operation creates Lipid Species Annotations using a specific method identified by the 'annotationMethodUuid' path parameter.",
+        "operationId" : "createLipidSpeciesAnnotationsWithMethod",
+        "parameters" : [ {
+          "name" : "annotationMethodUuid",
+          "in" : "path",
+          "description" : "The unique identifier of the method for which the Lipid Species Annotations are to be created.",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "description" : "The configuration for the annotations.",
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AnnotationConfiguration"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Successful operation, the Lipid Species Annotations are created.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/AnnotationDetails"
+                  }
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "An internal server error occurred. Returns an 'ErrorResponse' object with details about the error.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/featuretable/annotation/create/smartformula/{annotationMethodUuid}" : {
+      "post" : {
+        "tags" : [ "/featuretable" ],
+        "summary" : "Create SmartFormula Annotations with Method",
+        "description" : "This operation creates SmartFormula Annotations using a specific method identified by the 'annotationMethodUuid' path parameter.",
+        "operationId" : "createSmartFormulaAnnotationsWithMethod",
+        "parameters" : [ {
+          "name" : "annotationMethodUuid",
+          "in" : "path",
+          "description" : "The unique identifier of the method for which the SmartFormula Annotations are to be created.",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "description" : "The main ion details for the annotations.",
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "array",
+                "items" : {
+                  "$ref" : "#/components/schemas/MainIonDetails"
+                }
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Successful operation, the SmartFormula Annotations are created.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/AnnotationDetails"
+                  }
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "An internal server error occurred. Returns an 'ErrorResponse' object with details about the error.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/featuretable/annotation/create/targetlist/{annotationMethodUuid}" : {
+      "post" : {
+        "tags" : [ "/featuretable" ],
+        "summary" : "Create Target List Annotations with Method",
+        "description" : "This operation creates Target List Annotations using a specific method identified by the 'annotationMethodUuid' path parameter.",
+        "operationId" : "createTargetListAnnotationsWithMethod",
+        "parameters" : [ {
+          "name" : "annotationMethodUuid",
+          "in" : "path",
+          "description" : "The unique identifier of the method for which the Target List Annotations are to be created.",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "description" : "The configuration for the annotations.",
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AnnotationConfiguration"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Successful operation, the Target List Annotations are created.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/AnnotationDetails"
+                  }
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "An internal server error occurred. Returns an 'ErrorResponse' object with details about the error.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/featuretable/annotation/methods/{toolId}" : {
+      "get" : {
+        "tags" : [ "/featuretable" ],
+        "summary" : "Retrieve Annotation Methods by Tool ID",
+        "description" : "This operation retrieves Annotation Methods for a specific tool identified by the 'toolId' path parameter ('TL' for Target List, 'LS' for Lipid Species, 'SL' for Spectral Library, 'SF' for SmartFormula).",
+        "operationId" : "retrieveAnnotationMethodsByToolId",
+        "parameters" : [ {
+          "name" : "toolId",
+          "in" : "path",
+          "description" : "The unique identifier of the tool for which the Annotation Methods are to be retrieved. ('TL' for Target List, 'LS' for Lipid Species, 'SL' for Spectral Library, 'SF' for SmartFormula)",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful operation, the Annotation Methods for the specified tool are retrieved.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/AnnotationMethod"
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad Request, the provided 'toolId' is not recognized or invalid. Returns an 'ErrorResponse' object with details about the error.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "An internal server error occurred. Returns an 'ErrorResponse' object with details about the error.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/featuretable/feature/{featureId}/flag/create" : {
+      "post" : {
+        "tags" : [ "/featuretable" ],
+        "summary" : "Add Flag to Feature",
+        "description" : "This operation adds a flag to a specific feature identified by the 'featureId' path parameter.",
+        "operationId" : "addFlagToFeature",
+        "parameters" : [ {
+          "name" : "featureId",
+          "in" : "path",
+          "description" : "The unique identifier of the feature to which the flag is to be added.",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "flag",
+          "in" : "query",
+          "description" : "The flag to be added to the feature.",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "RED", "BLUE", "GREEN", "ORANGE", "PURPLE", "YELLOW" ]
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Successful operation, the flag is added to the feature.",
+            "content" : {
+              "application/json" : { }
+            }
+          },
+          "500" : {
+            "description" : "An internal server error occurred. Returns an 'ErrorResponse' object with details about the error.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/featuretable/feature/{featureId}/flag/remove" : {
+      "post" : {
+        "tags" : [ "/featuretable" ],
+        "summary" : "Remove Flag from Feature",
+        "description" : "This operation removes a flag from a specific feature identified by the 'featureId' path parameter.",
+        "operationId" : "removeFlagFromFeature",
+        "parameters" : [ {
+          "name" : "featureId",
+          "in" : "path",
+          "description" : "The unique identifier of the feature from which the flag is to be removed.",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "flag",
+          "in" : "query",
+          "description" : "The flag to be removed from the feature.",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "RED", "BLUE", "GREEN", "ORANGE", "PURPLE", "YELLOW" ]
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Successful operation, the flag is removed from the feature.",
+            "content" : {
+              "application/json" : { }
+            }
+          },
+          "500" : {
+            "description" : "An internal server error occurred. Returns an 'ErrorResponse' object with details about the error.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/create" : {
+      "post" : {
+        "tags" : [ "/projects" ],
+        "summary" : "Create a new project",
+        "description" : "This operation initiates the creation of a project by processing the provided project YAML. This YAML should define the project's structure, including details about experiments and feature tables.",
+        "operationId" : "createProject",
+        "requestBody" : {
+          "description" : "The YAML file that defines the structure and details of the project, including one experiment and one Feature Table.",
+          "content" : {
+            "text/plain" : {
+              "schema" : {
+                "type" : "string"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "202" : {
+            "description" : "Project successfully initiated. The response will include details (names and identifiers) about the created project, associated experiments, feature tables, and the ID of the started task.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProjectTaskSummary"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error. This can be due to invalid YAML structure, server misconfiguration, or other unexpected issues.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/taskstatus" : {
+      "get" : {
+        "tags" : [ "/projects" ],
+        "summary" : "Get Task Status",
+        "description" : "This endpoint provides the current status of a project task. Clients are advised to poll this endpoint every minute until the task status reaches 'done', 'canceled' or 'failed'.",
+        "operationId" : "getTaskStatus",
+        "parameters" : [ {
+          "name" : "workflowTaskId",
+          "in" : "query",
+          "description" : "ID of the project task to retrieve its status.",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "202" : {
+            "description" : "The task is still in processing. The response includes the name and ID of the ongoing task.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/WorkflowTaskInfo"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "The task has completed, either successfully or with errors. The response includes the name and ID of the completed task.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/WorkflowTaskInfo"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "An internal server error occurred.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/list" : {
+      "get" : {
+        "tags" : [ "/projects" ],
+        "summary" : "List All Projects",
+        "description" : "This operation retrieves a list of all projects.",
+        "operationId" : "listAllProjects",
+        "responses" : {
+          "200" : {
+            "description" : "Successful operation, the list of all projects is retrieved.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/Project"
+                  }
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "An internal server error occurred. Returns an 'ErrorResponse' object with details about the error.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/{projectId}" : {
+      "get" : {
+        "tags" : [ "/projects" ],
+        "summary" : "Retrieve Project",
+        "description" : "This operation retrieves a project identified by the 'projectId' path parameter.",
+        "operationId" : "retrieveProject",
+        "parameters" : [ {
+          "name" : "projectId",
+          "in" : "path",
+          "description" : "The unique identifier of the project to be retrieved.",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful operation, the project is retrieved.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Project"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "An internal server error occurred. Returns an 'ErrorResponse' object with details about the error.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/info/{projectId}" : {
+      "get" : {
+        "tags" : [ "/projects" ],
+        "summary" : "Retrieve Project Info",
+        "description" : "This operation retrieves information about a project identified by the 'projectId' path parameter.",
+        "operationId" : "retrieveProjectInfo",
+        "parameters" : [ {
+          "name" : "projectId",
+          "in" : "path",
+          "description" : "The unique identifier of the project for which the information is to be retrieved.",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful operation, the project information is retrieved.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProjectInfo"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "An internal server error occurred. Returns an 'ErrorResponse' object with details about the error.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/samples/{featureTableId}/list" : {
+      "get" : {
+        "tags" : [ "/samples" ],
+        "summary" : "List All Samples",
+        "description" : "This operation retrieves a list of all samples for a specific feature table identified by the 'featureTableId' path parameter.",
+        "operationId" : "listAllSamples",
+        "parameters" : [ {
+          "name" : "featureTableId",
+          "in" : "path",
+          "description" : "The unique identifier of the feature table for which the samples are to be retrieved.",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful operation, the list of all samples is retrieved.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/Sample"
+                  }
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "An internal server error occurred. Returns an 'ErrorResponse' object with details about the error.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/featuretable/feature/{featureId}/ms" : {
+      "get" : {
+        "tags" : [ "/featuretable" ],
+        "summary" : "Retrieve Feature Ion MS Spectra",
+        "description" : "This operation retrieves a consensus MS Spectrum for every ion of a Feature identified by the 'featureId' path parameter.",
+        "operationId" : "retrieveFeatureIonMsSpectra",
+        "parameters" : [ {
+          "name" : "featureId",
+          "in" : "path",
+          "description" : "The unique identifier of the feature for which the Feature Ion MS Spectra are to be retrieved.",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful operation, the Feature Ion MS Spectra are retrieved.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/FeatureIonMsSpectrumInfo"
+                  }
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "An internal server error occurred. Returns an 'ErrorResponse' object with details about the error.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/featuretable/feature/{featureId}/msms" : {
+      "get" : {
+        "tags" : [ "/featuretable" ],
+        "summary" : "Retrieve Feature MS/MS Spectra",
+        "description" : "This operation retrieves an MS/MS spectrum (if available) for every ion of a specific feature identified by the 'featureId' path parameter.",
+        "operationId" : "retrieveFeatureMsMsSpectra",
+        "parameters" : [ {
+          "name" : "featureId",
+          "in" : "path",
+          "description" : "The unique identifier of the feature for which the Feature MS/MS Spectra are to be retrieved.",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful operation, the Feature MS/MS Spectra are retrieved.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/FeatureIonMsMsSpectrumInfo"
+                  }
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "An internal server error occurred. Returns an 'ErrorResponse' object with details about the error.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/featuretable/feature/{featureId}/msmsdeiso" : {
+      "get" : {
+        "tags" : [ "/featuretable" ],
+        "summary" : "Retrieve Feature MS/MS Deisotoped Spectra",
+        "description" : "This operation retrieves a deisotoped MS/MS spectrum (if available) for every ion of a specific feature identified by the 'featureId' path parameter.",
+        "operationId" : "retrieveFeatureMsMsSpectraDeiso",
+        "parameters" : [ {
+          "name" : "featureId",
+          "in" : "path",
+          "description" : "The unique identifier of the feature for which the Feature MS/MS Deisotoped Spectra are to be retrieved.",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful operation, the Feature MS/MS Deisotoped Spectra are retrieved.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/FeatureIonMsMsSpectrumInfo"
+                  }
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "An internal server error occurred. Returns an 'ErrorResponse' object with details about the error.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/featuretable/feature/{featureId}/ms/details" : {
+      "get" : {
+        "tags" : [ "/featuretable" ],
+        "summary" : "Retrieve Feature MS Spectra Details",
+        "description" : "This operation retrieves MS Spectra for every analysis of a specific Feature identified by the 'featureId' parameter.",
+        "operationId" : "retrieveFeatureMsSpectraDetails",
+        "parameters" : [ {
+          "name" : "featureId",
+          "in" : "path",
+          "description" : "The unique identifier of the feature for which the Feature MS Spectra Details are to be retrieved.",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful operation, the Feature MS Spectra Details are retrieved.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/FeatureIonMsSpectrumInfo"
+                  }
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "An internal server error occurred. Returns an 'ErrorResponse' object with details about the error.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components" : {
+    "schemas" : {
+      "ModelMetaInfo" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "versionNumber" : {
+            "type" : "string"
+          },
+          "availableIonNotations" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "availableStructureTypes" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "enum" : [ "SMILES", "INCHI", "MOL" ]
+            }
+          }
+        }
+      },
+      "ErrorResponse" : {
+        "type" : "object",
+        "properties" : {
+          "errorCode" : {
+            "type" : "string"
+          },
+          "message" : {
+            "type" : "string",
+            "nullable" : true
+          }
+        }
+      },
+      "CCSPredictResult" : {
+        "type" : "object",
+        "properties" : {
+          "structure" : {
+            "$ref" : "#/components/schemas/Structure"
+          },
+          "ionNotation" : {
+            "type" : "string"
+          },
+          "predictedCcs" : {
+            "type" : "number",
+            "format" : "double",
+            "nullable" : true
+          },
+          "resultMessage" : {
+            "type" : "string",
+            "nullable" : true
+          }
+        }
+      },
+      "Structure" : {
+        "required" : [ "representation", "type" ],
+        "type" : "object",
+        "properties" : {
+          "type" : {
+            "type" : "string",
+            "enum" : [ "SMILES", "INCHI", "MOL" ]
+          },
+          "representation" : {
+            "type" : "string"
+          }
+        },
+        "nullable" : true
+      },
+      "Chromatogram" : {
+        "type" : "object",
+        "properties" : {
+          "rtsInSeconds" : {
+            "type" : "array",
+            "items" : {
+              "type" : "number",
+              "format" : "double"
+            }
+          },
+          "intensities" : {
+            "type" : "array",
+            "items" : {
+              "type" : "number",
+              "format" : "double"
+            }
+          },
+          "analysisId" : {
+            "type" : "string"
+          }
+        },
+        "nullable" : true
+      },
+      "FeatureEics" : {
+        "type" : "object",
+        "properties" : {
+          "featureIon" : {
+            "$ref" : "#/components/schemas/FeatureIon"
+          },
+          "eics" : {
+            "type" : "array",
+            "nullable" : true,
+            "items" : {
+              "$ref" : "#/components/schemas/Chromatogram"
+            }
+          }
+        }
+      },
+      "FeatureIon" : {
+        "type" : "object",
+        "properties" : {
+          "ionNotation" : {
+            "type" : "string"
+          },
+          "mz" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "ccs" : {
+            "type" : "number",
+            "format" : "double",
+            "nullable" : true
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "mainIon" : {
+            "type" : "boolean"
+          }
+        }
+      },
+      "FeatureEims" : {
+        "type" : "object",
+        "properties" : {
+          "featureIon" : {
+            "$ref" : "#/components/schemas/FeatureIon"
+          },
+          "eims" : {
+            "type" : "array",
+            "nullable" : true,
+            "items" : {
+              "$ref" : "#/components/schemas/Mobilogram"
+            }
+          }
+        }
+      },
+      "Mobilogram" : {
+        "type" : "object",
+        "properties" : {
+          "inverseIonMobilities" : {
+            "type" : "array",
+            "items" : {
+              "type" : "number",
+              "format" : "double"
+            }
+          },
+          "intensities" : {
+            "type" : "array",
+            "items" : {
+              "type" : "number",
+              "format" : "double"
+            }
+          },
+          "analysisId" : {
+            "type" : "string"
+          }
+        },
+        "nullable" : true
+      },
+      "Experiment" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "featureTables" : {
+            "type" : "array",
+            "nullable" : true,
+            "items" : {
+              "$ref" : "#/components/schemas/FeatureTable"
+            }
+          }
+        },
+        "nullable" : true
+      },
+      "FeatureTable" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "polarity" : {
+            "type" : "string"
+          },
+          "processingWorkflow" : {
+            "type" : "string"
+          }
+        },
+        "nullable" : true
+      },
+      "Project" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "experiments" : {
+            "type" : "array",
+            "nullable" : true,
+            "items" : {
+              "$ref" : "#/components/schemas/Experiment"
+            }
+          }
+        }
+      },
+      "ProjectTaskSummary" : {
+        "type" : "object",
+        "properties" : {
+          "project" : {
+            "$ref" : "#/components/schemas/Project"
+          },
+          "workflowTaskId" : {
+            "type" : "string"
+          },
+          "taskId" : {
+            "type" : "string",
+            "writeOnly" : true
+          }
+        }
+      },
+      "AQScores" : {
+        "type" : "object",
+        "properties" : {
+          "mzAQScore" : {
+            "type" : "integer",
+            "format" : "int32",
+            "nullable" : true
+          },
+          "rtAQScore" : {
+            "type" : "integer",
+            "format" : "int32",
+            "nullable" : true
+          },
+          "isotopePatternAQScore" : {
+            "type" : "integer",
+            "format" : "int32",
+            "nullable" : true
+          },
+          "msmsAQScore" : {
+            "type" : "integer",
+            "format" : "int32",
+            "nullable" : true
+          },
+          "ccsAQScore" : {
+            "type" : "integer",
+            "format" : "int32",
+            "nullable" : true
+          },
+          "mzDeviation" : {
+            "type" : "number",
+            "format" : "double",
+            "nullable" : true
+          },
+          "rtDeviation" : {
+            "type" : "number",
+            "format" : "double",
+            "nullable" : true
+          },
+          "isotopePatternScore" : {
+            "type" : "number",
+            "format" : "double",
+            "nullable" : true
+          },
+          "msmsScore" : {
+            "type" : "number",
+            "format" : "double",
+            "nullable" : true
+          },
+          "ccsDeviation" : {
+            "type" : "number",
+            "format" : "double",
+            "nullable" : true
+          },
+          "annotationModifiers" : {
+            "type" : "array",
+            "nullable" : true,
+            "items" : {
+              "type" : "string",
+              "nullable" : true
+            }
+          }
+        },
+        "nullable" : true
+      },
+      "AnnotatedMsMsFragmentDetails" : {
+        "type" : "object",
+        "properties" : {
+          "fragmentIonFormula" : {
+            "type" : "string"
+          },
+          "accurateMz" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "msMsSpectrumId" : {
+            "type" : "string"
+          },
+          "msMsRuleType" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "lipidIdentityLevel" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "chainInformation" : {
+            "type" : "string",
+            "nullable" : true
+          }
+        },
+        "nullable" : true
+      },
+      "Annotation" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "formula" : {
+            "type" : "string"
+          },
+          "aqScores" : {
+            "$ref" : "#/components/schemas/AQScores"
+          },
+          "tool" : {
+            "type" : "string"
+          },
+          "structureInchi" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "structureSmiles" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "databaseIdentifiers" : {
+            "type" : "array",
+            "nullable" : true,
+            "items" : {
+              "$ref" : "#/components/schemas/DatabaseIdentifier"
+            }
+          },
+          "annotatedMsMsFragmentDetails" : {
+            "type" : "array",
+            "nullable" : true,
+            "items" : {
+              "$ref" : "#/components/schemas/AnnotatedMsMsFragmentDetails"
+            }
+          }
+        }
+      },
+      "DatabaseIdentifier" : {
+        "type" : "object",
+        "properties" : {
+          "label" : {
+            "type" : "string"
+          },
+          "identifier" : {
+            "type" : "string"
+          }
+        },
+        "nullable" : true
+      },
+      "Feature" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string"
+          },
+          "rtInSeconds" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "mass" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "featureIons" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/FeatureIon"
+            }
+          },
+          "primaryAnnotation" : {
+            "$ref" : "#/components/schemas/Annotation"
+          },
+          "allAnnotations" : {
+            "type" : "array",
+            "nullable" : true,
+            "items" : {
+              "$ref" : "#/components/schemas/Annotation"
+            }
+          },
+          "userFlags" : {
+            "type" : "array",
+            "nullable" : true,
+            "items" : {
+              "type" : "string",
+              "nullable" : true,
+              "enum" : [ "RED", "BLUE", "GREEN", "ORANGE", "PURPLE", "YELLOW" ]
+            }
+          }
+        }
+      },
+      "FeatureMatrix" : {
+        "type" : "object",
+        "properties" : {
+          "intensities" : {
+            "type" : "array",
+            "items" : {
+              "type" : "array",
+              "items" : {
+                "type" : "number",
+                "format" : "double"
+              }
+            }
+          },
+          "featureIds" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "analysisIds" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          }
+        }
+      },
+      "AnnotationCandidate" : {
+        "required" : [ "annotationConfigurationId", "molecularFormula", "name" ],
+        "type" : "object",
+        "properties" : {
+          "name" : {
+            "type" : "string"
+          },
+          "annotationConfigurationId" : {
+            "type" : "string"
+          },
+          "molecularFormula" : {
+            "type" : "string"
+          },
+          "structure" : {
+            "$ref" : "#/components/schemas/Structure"
+          },
+          "rtDevInSeconds" : {
+            "type" : "number",
+            "format" : "double",
+            "nullable" : true
+          },
+          "msMsScore" : {
+            "type" : "number",
+            "format" : "double",
+            "nullable" : true
+          },
+          "ccsDevInPerc" : {
+            "type" : "number",
+            "format" : "double",
+            "nullable" : true
+          }
+        }
+      },
+      "AnnotationToolConfiguration" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "scoringConfiguration" : {
+            "$ref" : "#/components/schemas/ScoringConfiguration"
+          }
+        }
+      },
+      "ScoringConfiguration" : {
+        "required" : [ "mzNarrow", "mzUnit", "mzWide" ],
+        "type" : "object",
+        "properties" : {
+          "mzWide" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "mzNarrow" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "mzUnit" : {
+            "type" : "string",
+            "enum" : [ "DA", "MDA", "PPM" ]
+          },
+          "rtInSecondsNarrow" : {
+            "type" : "number",
+            "format" : "double",
+            "nullable" : true
+          },
+          "rtInSecondsWide" : {
+            "type" : "number",
+            "format" : "double",
+            "nullable" : true
+          },
+          "msMsWide" : {
+            "type" : "number",
+            "format" : "double",
+            "nullable" : true
+          },
+          "msMsNarrow" : {
+            "type" : "number",
+            "format" : "double",
+            "nullable" : true
+          },
+          "ccsWide" : {
+            "type" : "number",
+            "format" : "double",
+            "nullable" : true
+          },
+          "ccsNarrow" : {
+            "type" : "number",
+            "format" : "double",
+            "nullable" : true
+          },
+          "msigmaNarrow" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "msigmaWide" : {
+            "type" : "number",
+            "format" : "double"
+          }
+        }
+      },
+      "AnnotationDetails" : {
+        "type" : "object",
+        "properties" : {
+          "annotation" : {
+            "$ref" : "#/components/schemas/Annotation"
+          },
+          "mainIonNotation" : {
+            "type" : "string"
+          }
+        }
+      },
+      "AnnotationConfiguration" : {
+        "type" : "object",
+        "properties" : {
+          "ionsForReassignment" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "mainIonInfos" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/MainIonDetails"
+            }
+          }
+        }
+      },
+      "MainIonDetails" : {
+        "type" : "object",
+        "properties" : {
+          "featureId" : {
+            "type" : "string"
+          },
+          "mainIonNotation" : {
+            "type" : "string"
+          },
+          "mz" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "mayReassignPrimaryIon" : {
+            "type" : "boolean"
+          },
+          "retentionTimeInSeconds" : {
+            "type" : "number",
+            "format" : "double",
+            "nullable" : true
+          },
+          "ccs" : {
+            "type" : "number",
+            "format" : "double",
+            "nullable" : true
+          },
+          "msSpectrum" : {
+            "$ref" : "#/components/schemas/MsSpectrum"
+          },
+          "msMsSpectrum" : {
+            "$ref" : "#/components/schemas/MsMsSpectrum"
+          },
+          "msMsSpectrumDeiso" : {
+            "$ref" : "#/components/schemas/MsMsSpectrum"
+          }
+        }
+      },
+      "MsMsSpectrum" : {
+        "type" : "object",
+        "properties" : {
+          "signals" : {
+            "uniqueItems" : true,
+            "type" : "array",
+            "nullable" : true,
+            "items" : {
+              "$ref" : "#/components/schemas/Signal"
+            }
+          }
+        },
+        "nullable" : true
+      },
+      "MsSpectrum" : {
+        "type" : "object",
+        "properties" : {
+          "signals" : {
+            "uniqueItems" : true,
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/Signal"
+            }
+          },
+          "analysisId" : {
+            "type" : "string"
+          },
+          "meanMeasuredMz" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "rtInSeconds" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "ccs" : {
+            "type" : "number",
+            "format" : "double"
+          }
+        },
+        "nullable" : true
+      },
+      "Signal" : {
+        "type" : "object",
+        "properties" : {
+          "mz" : {
+            "type" : "number",
+            "description" : "m/z value in Da",
+            "format" : "double"
+          },
+          "intensity" : {
+            "type" : "number",
+            "description" : "absolute intensity",
+            "format" : "double"
+          },
+          "width" : {
+            "type" : "number",
+            "description" : "the peak width at the given m/z and intensity (can be 0 for MS/MS spectra)",
+            "format" : "double",
+            "nullable" : true
+          }
+        }
+      },
+      "AnnotationMethod" : {
+        "type" : "object",
+        "properties" : {
+          "name" : {
+            "type" : "string"
+          },
+          "version" : {
+            "type" : "string"
+          },
+          "active" : {
+            "type" : "boolean"
+          },
+          "id" : {
+            "type" : "string"
+          }
+        }
+      },
+      "TaskInfo" : {
+        "type" : "object",
+        "properties" : {
+          "taskId" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "progressValue" : {
+            "type" : "number",
+            "format" : "float"
+          }
+        },
+        "nullable" : true
+      },
+      "WorkflowTaskInfo" : {
+        "type" : "object",
+        "properties" : {
+          "workflowTaskId" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "taskInfos" : {
+            "type" : "array",
+            "nullable" : true,
+            "items" : {
+              "$ref" : "#/components/schemas/TaskInfo"
+            }
+          }
+        }
+      },
+      "Color" : {
+        "type" : "object",
+        "properties" : {
+          "hex" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          }
+        }
+      },
+      "ExperimentInfo" : {
+        "type" : "object",
+        "properties" : {
+          "experimentId" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "groupColors" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "groupSymbols" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "creationDate" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "samples" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/SampleInfo"
+            }
+          }
+        },
+        "nullable" : true
+      },
+      "ProjectInfo" : {
+        "type" : "object",
+        "properties" : {
+          "projectId" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "description" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "owner" : {
+            "type" : "string"
+          },
+          "experiments" : {
+            "type" : "array",
+            "nullable" : true,
+            "items" : {
+              "$ref" : "#/components/schemas/ExperimentInfo"
+            }
+          },
+          "creationDate" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "attribute" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/SampleAttributeType"
+            }
+          }
+        }
+      },
+      "SampleAttribute" : {
+        "type" : "object",
+        "properties" : {
+          "name" : {
+            "type" : "string"
+          },
+          "value" : {
+            "type" : "string"
+          }
+        },
+        "nullable" : true
+      },
+      "SampleAttributeOption" : {
+        "type" : "object",
+        "properties" : {
+          "name" : {
+            "type" : "string"
+          },
+          "color" : {
+            "$ref" : "#/components/schemas/Color"
+          },
+          "symbol" : {
+            "type" : "string",
+            "enum" : [ "CIRCLE", "TRIANGLE", "CROSS", "PLUS", "RHOMBUS", "TRIANGLE_DOWN", "QUADRAT" ]
+          }
+        }
+      },
+      "SampleAttributeType" : {
+        "type" : "object",
+        "properties" : {
+          "name" : {
+            "type" : "string"
+          },
+          "detailedAttributeOptions" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/SampleAttributeOption"
+            }
+          }
+        }
+      },
+      "SampleInfo" : {
+        "type" : "object",
+        "properties" : {
+          "sampleId" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "sampleType" : {
+            "type" : "string"
+          },
+          "creationDate" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "attributes" : {
+            "type" : "array",
+            "nullable" : true,
+            "items" : {
+              "$ref" : "#/components/schemas/SampleAttribute"
+            }
+          }
+        }
+      },
+      "Analysis" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "include" : {
+            "type" : "boolean",
+            "nullable" : true
+          }
+        },
+        "nullable" : true
+      },
+      "Sample" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "volume" : {
+            "$ref" : "#/components/schemas/SampleVolume"
+          },
+          "attributes" : {
+            "type" : "array",
+            "nullable" : true,
+            "items" : {
+              "$ref" : "#/components/schemas/SampleAttribute"
+            }
+          },
+          "analysis" : {
+            "type" : "array",
+            "nullable" : true,
+            "items" : {
+              "$ref" : "#/components/schemas/Analysis"
+            }
+          }
+        }
+      },
+      "SampleVolume" : {
+        "type" : "object",
+        "properties" : {
+          "volume" : {
+            "type" : "number",
+            "format" : "double"
+          },
+          "unit" : {
+            "type" : "string"
+          }
+        },
+        "nullable" : true
+      },
+      "FeatureIonMsSpectrumInfo" : {
+        "type" : "object",
+        "properties" : {
+          "featureId" : {
+            "type" : "string"
+          },
+          "featureIon" : {
+            "$ref" : "#/components/schemas/FeatureIon"
+          },
+          "spectra" : {
+            "type" : "array",
+            "nullable" : true,
+            "items" : {
+              "$ref" : "#/components/schemas/MsSpectrum"
+            }
+          }
+        }
+      },
+      "FeatureIonMsMsSpectrumInfo" : {
+        "type" : "object",
+        "properties" : {
+          "featureId" : {
+            "type" : "string"
+          },
+          "featureIon" : {
+            "$ref" : "#/components/schemas/FeatureIon"
+          },
+          "spectra" : {
+            "type" : "array",
+            "nullable" : true,
+            "items" : {
+              "$ref" : "#/components/schemas/MsMsSpectrum"
+            }
+          }
+        }
+      }
+    }
+  }
+}
