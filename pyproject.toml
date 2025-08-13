@@ -1,11 +1,12 @@
 [project]
 name = "metaPyScape"
-version = "1.0.0"
+version = "0.0.1"
 description = "MetaboScape REST Application"
 authors = [
   {name = "OpenAPI Generator Community",email = "team@openapitools.org"},
 ]
-license = "MIT License"
+license = { file = "LICENSE" }
+
 readme = "README.md"
 keywords = ["OpenAPI", "OpenAPI-Generator", "MetaboScape REST Application"]
 requires-python = ">=3.9"
@@ -18,7 +19,7 @@ dependencies = [
 ]
 
 [project.urls]
-Repository = "https://github.com/GIT_USER_ID/GIT_REPO_ID"
+Repository = "https://github.com/sneumann/metaPyScape"
 
 [tool.poetry]
 requires-poetry = ">=2.0"
