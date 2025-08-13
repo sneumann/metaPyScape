@@ -5,19 +5,22 @@ UsingMetaPyScape
 """
 
 from __future__ import print_function
+
+from mztab_m_io.mztab_m_writer import writeMzTabM
 import metaPyScape
 from metaPyScape.rest import ApiException
 import yaml
-import json
 
 # pymzTab-m
-import time
 import mztab_m_swagger_client
 from mztab_m_swagger_client.rest import ApiException
+from mztab_m_swagger_client.models import MzTab
 from mztab_m_swagger_client.models import Metadata
 from mztab_m_swagger_client.models import SmallMoleculeSummary
 from mztab_m_swagger_client.models import SmallMoleculeFeature
 from mztab_m_swagger_client.models import SmallMoleculeEvidence
+
+from mztab_m_io import *
 
 # Defining the host is optional and defaults to http://localhost
 # See configuration.py for a list of all supported configuration parameters.
@@ -135,8 +138,17 @@ sme = [
     )    
 ]
 
-mztabfile = mztab_m_swagger_client.MzTab(metadata=mtd, 
-                                         small_molecule_summary=sml,
-                                         small_molecule_feature=smf,
-                                         small_molecule_evidence=sme
-                                         )
+mztab = MzTab(metadata=mtd, 
+              small_molecule_summary=sml,
+              small_molecule_feature=smf,
+              small_molecule_evidence=sme
+              )
+
+# write the mztab JSON to file /tmp/mztab.json
+with open("/tmp/mztab.json", "w") as f:
+  print(mztab, file=f)
+  
+try:
+    writeMzTabM("/tmp/mzTab-M.json", mztab)
+except Exception as e:
+    print("Error writing MzTab-M file: %s\n" % e)
