@@ -1,3 +1,16 @@
+# Secrets
+config.yml
+
+# Local venv
+metaPyScape/bin/
+metaPyScape/lib64
+metaPyScape/pyvenv.cfg
+
+
+
+# Backup files
+*~
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
