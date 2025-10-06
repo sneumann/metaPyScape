@@ -22,6 +22,8 @@ from mztab_m_swagger_client.models import SmallMoleculeEvidence
 
 from mztab_m_io import *
 
+import pprint
+
 # Defining the host is optional and defaults to http://localhost
 # See configuration.py for a list of all supported configuration parameters.
 # Reading the configuration from config.yml with keys base_path and api-key
@@ -36,18 +38,25 @@ api_client = metaPyScape.ApiClient(configuration=configuration,
                                    header_name="api-key", 
                                    header_value=config.get("api-key", None))
 
+
 project_api = metaPyScape.ProjectsApi(api_client)
-feature_table_api = metaPyScape.FeaturetableApi(api_client)
+featuretable_api = metaPyScape.FeaturetableApi(api_client)
+samples_api = metaPyScape.SamplesApi()
+
+# what is this block exactly for? getting project information, are these two approaches for getting the same information?
+
 
 try:
-    api_response = project_api.list_all_projects()
+    api_response_project = project_api.list_all_projects()
     # print as JSON
-    # print(json.dumps(api_response, default=str, indent=2))
+    # pprint.pp(api_response_project)
 except ApiException as e:
     print("Exception when calling Project->list_all_projects: %s\n" % e)
 
+
 try:
     ## A Test Project
+    ## one could get the project id out of api_response instead of hardcoding
     projectId = "87d912bb-4153-4443-bf2a-1036548a0961"
     projectInfo = project_api.retrieve_project_info(projectId)
     project = project_api.retrieve_project(projectId)
@@ -57,7 +66,60 @@ except ApiException as e:
     print("Exception when getting project infos: %s\n" % e)
 
 
-# featureTablesID=2c32680e-debc-4f77-8970-78cf547d9875
+
+"""
+# getting sample information (--> for metadata ms_run, assay)
+# sample information 
+
+try:
+    ## A Test featuretableId, hardcoded. change later
+    featuretableId = "2c32680e-debc-4f77-8970-78cf547d9875"
+    #sampleInfo = samples_api.retrieve_project_info(featuretableId)
+    api_response_sample = samples_api.list_all_samples(featuretableId)
+    pprint.pp(api_response_sample)
+except ApiException as e:
+    print("Exception when calling SamplesApi->list_all_samples: %s\n" % e)
+
+#--> this is not working 
+"""
+
+# get featuretable information
+
+try:
+    # Fetches a specific Feature Table based on its ID
+    featuretableId = "2c32680e-debc-4f77-8970-78cf547d9875"
+    api_response_ft = featuretable_api.retrieve_feature_table(featuretableId)
+    # pprint.pp(api_response_ft)
+except ApiException as e:
+    print("Exception when calling FeaturetableApi->retrieve_feature_table: %s\n" % e)
+
+# extract information from featuretables as a list 
+
+def get_info_ft(featuretable, list_name, column): 
+    """
+    takes a featuretable, an empty list, and the name of the wanted column to extract data from as a string
+    returns a list with column data for every feature
+    """ 
+    for feature in featuretable: 
+        actual_info = getattr(feature, column)
+        list_name.append(actual_info)
+    return list_name
+
+
+#getting information out of featuretable 
+
+mass_list = []
+mass = get_info_ft(api_response_ft, mass_list, "mass")
+
+featureId_list = []
+featureIds = get_info_ft(api_response_ft, featureId_list, "id")
+
+rt_list = []
+rt_values = get_info_ft(api_response_ft, rt_list, "rt_in_seconds")
+
+
+
+"""
 
 ##
 ## pymzTab-m
@@ -152,3 +214,4 @@ try:
     writeMzTabM("/tmp/mzTab-M.json", mztab)
 except Exception as e:
     print("Error writing MzTab-M file: %s\n" % e)
+"""
