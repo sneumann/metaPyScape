@@ -80,7 +80,7 @@ except ApiException as e:
     print("Exception when calling SamplesApi->list_all_samples: %s\n" % e)
 
 
-#defining the first sample (harcoded), change later to more dynamic code 
+#defining the first sample (hardcoded), change later to more dynamic code 
 
 first_sample = api_response_sample[0]       #first_sample is an object of class metaPyScape.models.sample.Sample
 sample_info = first_sample.analysis         #sample_info is a list, each entry in the list has type metaPyScape.models.analysis.Analysis
@@ -92,9 +92,11 @@ try:
     # Fetches a specific Feature Table based on its ID
     featuretableId = "2c32680e-debc-4f77-8970-78cf547d9875"
     api_response_ft = featuretable_api.retrieve_feature_table(featuretableId)
+    api_response_intensity = featuretable_api.retrieve_intensity_matrix(featuretableId)         # of type class 'metaPyScape.models.feature_matrix.FeatureMatrix'
     # pprint.pp(api_response_ft)
 except ApiException as e:
     print("Exception when calling FeaturetableApi->retrieve_feature_table: %s\n" % e)
+
 
 # extract information from featuretables as a list 
 
@@ -125,6 +127,33 @@ sample_Ids = get_data(sample_info, sampleIds_list, "id")
 
 sample_names_list = []
 sample_names = get_data(sample_info, sample_names_list, "name")
+
+#print(api_response_intensity.intensities[0])
+#print(type(api_response_intensity.intensities[0]))
+
+# getting intensity values for every sample 
+
+intensities = api_response_intensity.intensities
+
+
+#built a function and then do a for loop over the function: 
+
+def get_sample_intensity(intensities, sample_nr):
+    sample_data = []
+    for feature in intensities: 
+        sample_data.append(feature[sample_nr])
+    return sample_data
+
+
+# store the intensity data in a dictionary for all samples 
+# the list of sample numbers can be dynamic according to the number of samples (change later)
+
+sample_numbers = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18]
+intensity_data = {}
+
+for sample_nr in sample_numbers: 
+    variable_name = f'abundance_assay[{sample_nr}]'
+    intensity_data[variable_name] = get_sample_intensity(intensities, sample_nr)
 
 
 
