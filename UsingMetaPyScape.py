@@ -41,10 +41,11 @@ api_client = metaPyScape.ApiClient(configuration=configuration,
 
 project_api = metaPyScape.ProjectsApi(api_client)
 featuretable_api = metaPyScape.FeaturetableApi(api_client)
-samples_api = metaPyScape.SamplesApi()
+samples_api = metaPyScape.SamplesApi(api_client)
 
 # what is this block exactly for? getting project information, are these two approaches for getting the same information?
 
+#right now, this code block is not needed (07.10.)
 
 try:
     api_response_project = project_api.list_all_projects()
@@ -67,21 +68,23 @@ except ApiException as e:
 
 
 
-"""
 # getting sample information (--> for metadata ms_run, assay)
 # sample information 
 
 try:
     ## A Test featuretableId, hardcoded. change later
     featuretableId = "2c32680e-debc-4f77-8970-78cf547d9875"
-    #sampleInfo = samples_api.retrieve_project_info(featuretableId)
     api_response_sample = samples_api.list_all_samples(featuretableId)
-    pprint.pp(api_response_sample)
+    #pprint.pp(api_response_sample)
 except ApiException as e:
     print("Exception when calling SamplesApi->list_all_samples: %s\n" % e)
 
-#--> this is not working 
-"""
+
+#defining the first sample (harcoded), change later to more dynamic code 
+
+first_sample = api_response_sample[0]       #first_sample is an object of class metaPyScape.models.sample.Sample
+sample_info = first_sample.analysis         #sample_info is a list, each entry in the list has type metaPyScape.models.analysis.Analysis
+
 
 # get featuretable information
 
@@ -95,32 +98,39 @@ except ApiException as e:
 
 # extract information from featuretables as a list 
 
-def get_info_ft(featuretable, list_name, column): 
+def get_data(data_list, list_name, column): 
     """
-    takes a featuretable, an empty list, and the name of the wanted column to extract data from as a string
-    returns a list with column data for every feature
-    """ 
-    for feature in featuretable: 
-        actual_info = getattr(feature, column)
+    takes a data_list, an empty list, and the name of the wanted column to extract data from as a string
+    returns the given list with column data for every entry of original list
+    """
+    for entry in data_list: 
+        actual_info = getattr(entry, column)
         list_name.append(actual_info)
     return list_name
 
 
-#getting information out of featuretable 
+#getting information out of featuretable and sample_info
 
 mass_list = []
-mass = get_info_ft(api_response_ft, mass_list, "mass")
+mass = get_data(api_response_ft, mass_list, "mass")
 
 featureId_list = []
-featureIds = get_info_ft(api_response_ft, featureId_list, "id")
+featureIds = get_data(api_response_ft, featureId_list, "id")
 
 rt_list = []
-rt_values = get_info_ft(api_response_ft, rt_list, "rt_in_seconds")
+rt_values = get_data(api_response_ft, rt_list, "rt_in_seconds")
+
+sampleIds_list = []
+sample_Ids = get_data(sample_info, sampleIds_list, "id")
+
+sample_names_list = []
+sample_names = get_data(sample_info, sample_names_list, "name")
 
 
+
+# dataframe wäre hilfreich --> pandas 
 
 """
-
 ##
 ## pymzTab-m
 ##
