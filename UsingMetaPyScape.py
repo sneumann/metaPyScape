@@ -155,6 +155,55 @@ for sample_nr in sample_numbers:
     variable_name = f'abundance_assay[{sample_nr}]'
     intensity_data[variable_name] = get_sample_intensity(intensities, sample_nr)
 
+# --> a dictionary can be easily transformed do a df with: 
+
+# intensities_df = pd.DataFrame(data=intensity_data)
+
+#make a list of the mz values (dont know if this is fine, because a feature could have several feature ions)
+exp_mass_to_charge = []
+
+for feature in api_response_ft: 
+    #actual_mass_to_charge = feature.featureIons[0].mz         #grap the mz value of the first feature ion 
+    exp_mass_to_charge.append(feature.featureIons[0].mz)
+
+
+#make a list of adduct ion for SMF,SME table
+adduct_ion = []
+
+for feature in api_response_ft: 
+    #actual_adduct_ion = feature.featureIons[0].ion_notation         #grap the name of the first feature ion 
+    adduct_ion.append(feature.featureIons[0].ion_notation)
+
+"""
+#make a list of adduct ions for SML table
+adduct_ions = []
+
+for feature in api_response_ft: 
+    #actual_adduct_ion = feature.featureIons[0].ion_notation         #grap the names of all feature ions
+    feature_ions = []
+    adduct_ions.append(feature.featureIons.ion_notation)
+"""
+
+# make a list of chemical names 
+chemical_name = []
+
+for feature in api_response_ft: 
+    if feature.primaryAnnotation == "null":     
+        chemical_name.append("null")
+    else:        #grap the chemical name of the primary annotation and add to list of chemical names 
+        chemical_name.append(feature.primaryAnnotation.name)
+
+# make a list of chemical formulas
+chemical_formula = []
+
+for feature in api_response_ft: 
+    if feature.primaryAnnotation == "null":     
+        chemical_formula.append("null")
+    else:        #grap the chemical name of the primary annotation and add to list of chemical names 
+        chemical_formula.append(feature.primaryAnnotation.formula) 
+
+
+
 
 
 # dataframe wäre hilfreich --> pandas 
