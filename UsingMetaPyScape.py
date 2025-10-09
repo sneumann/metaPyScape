@@ -10,6 +10,7 @@ from mztab_m_io.mztab_m_writer import writeMzTabM
 import metaPyScape
 from metaPyScape.rest import ApiException
 import yaml
+import pandas as pd
 
 # pymzTab-m
 import mztab_m_swagger_client
@@ -46,6 +47,7 @@ samples_api = metaPyScape.SamplesApi(api_client)
 # what is this block exactly for? getting project information, are these two approaches for getting the same information?
 
 #right now, this code block is not needed (07.10.)
+
 
 try:
     api_response_project = project_api.list_all_projects()
@@ -148,23 +150,24 @@ def get_sample_intensity(intensities, sample_nr):
 # store the intensity data in a dictionary for all samples 
 # the list of sample numbers can be dynamic according to the number of samples (change later)
 
-sample_numbers = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18]
+sample_numbers = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17]
 intensity_data = {}
 
 for sample_nr in sample_numbers: 
-    variable_name = f'abundance_assay[{sample_nr}]'
+    variable_name = f'abundance_assay[{sample_nr+1}]'
     intensity_data[variable_name] = get_sample_intensity(intensities, sample_nr)
 
-# --> a dictionary can be easily transformed do a df with: 
+# --> a dictionary can be easily transformed to a df with: 
 
 # intensities_df = pd.DataFrame(data=intensity_data)
 
+
 #make a list of the mz values (dont know if this is fine, because a feature could have several feature ions)
-exp_mass_to_charge = []
+exp_mass_to_charge_list = []
 
 for feature in api_response_ft: 
     #actual_mass_to_charge = feature.featureIons[0].mz         #grap the mz value of the first feature ion 
-    exp_mass_to_charge.append(feature.featureIons[0].mz)
+    exp_mass_to_charge_list.append(feature.feature_ions[0].mz)
 
 
 #make a list of adduct ion for SMF,SME table
@@ -172,7 +175,7 @@ adduct_ion = []
 
 for feature in api_response_ft: 
     #actual_adduct_ion = feature.featureIons[0].ion_notation         #grap the name of the first feature ion 
-    adduct_ion.append(feature.featureIons[0].ion_notation)
+    adduct_ion.append(feature.feature_ions[0].ion_notation)
 
 """
 #make a list of adduct ions for SML table
@@ -184,27 +187,70 @@ for feature in api_response_ft:
     adduct_ions.append(feature.featureIons.ion_notation)
 """
 
-# make a list of chemical names 
-chemical_name = []
+def get_data_SML(api_response_ft, list_name, column_1, column_2):
+    for feature in api_response_ft: 
 
-for feature in api_response_ft: 
-    if feature.primaryAnnotation == "null":     
-        chemical_name.append("null")
-    else:        #grap the chemical name of the primary annotation and add to list of chemical names 
-        chemical_name.append(feature.primaryAnnotation.name)
+        if getattr(feature, column_1) is None:
+            list_name.append("null")
+        else:                                                       #grap the chemical name of the primary annotation and add to list of chemical names 
+            value = getattr(getattr(feature, column_1), column_2)
+            list_name.append(value)                                     
+    return list_name 
 
-# make a list of chemical formulas
-chemical_formula = []
+chemical_name_list = []
+chemical_name = get_data_SML(api_response_ft,chemical_name_list,"primary_annotation","name")
 
-for feature in api_response_ft: 
-    if feature.primaryAnnotation == "null":     
-        chemical_formula.append("null")
-    else:        #grap the chemical name of the primary annotation and add to list of chemical names 
-        chemical_formula.append(feature.primaryAnnotation.formula) 
+chemical_formula_list = []
+chemical_formula = get_data_SML(api_response_ft,chemical_formula_list,"primary_annotation","formula")
+
+smiles_list = []
+smiles = get_data_SML(api_response_ft,smiles_list,"primary_annotation","structure_smiles")
+
+inchi_list = []
+inchi = get_data_SML(api_response_ft,inchi_list,"primary_annotation","structure_inchi")
+
+database_identifiers_list = []
+database_identifiers = get_data_SML(api_response_ft,database_identifiers_list,"primary_annotation","database_identifiers")
+
+print(len(chemical_name))           
+print(len(chemical_formula))        
+print(len(inchi))                   
+print(len(smiles))                  
+print(len(database_identifiers))  
 
 
+"""
+"""
+"""
+# get data for every annotation for the SME table, code copied from intensity dictionary 
+
+def get_data_annotation(,):
+    sample_data = []
+    for feature in intensities: 
+        sample_data.append(feature[sample_nr])
+    return sample_data
 
 
+# store the intensity data in a dictionary for all samples 
+# the list of sample numbers can be dynamic according to the number of samples (change later)
+
+sample_numbers = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17]
+intensity_data = {}
+
+for sample_nr in sample_numbers: 
+    variable_name = f'abundance_assay[{sample_nr+1}]'
+    intensity_data[variable_name] = get_sample_intensity(intensities, sample_nr)
+
+for annotation in all_annotations: 
+    {featureID = 
+    annotationID = 
+    name = 
+    formula = 
+    MS_spectra_ref = 
+    inchi = 
+    smiles = 
+    database_identifier = }
+""" 
 
 # dataframe wäre hilfreich --> pandas 
 
