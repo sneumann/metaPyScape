@@ -159,7 +159,8 @@ for sample_nr in sample_numbers:
 
 # --> a dictionary can be easily transformed to a df with: 
 
-# intensities_df = pd.DataFrame(data=intensity_data)
+intensities_df = pd.DataFrame(data=intensity_data)
+
 
 
 #make a list of the mz values (dont know if this is fine, because a feature could have several feature ions)
@@ -177,7 +178,9 @@ for feature in api_response_ft:
     #actual_adduct_ion = feature.featureIons[0].ion_notation         #grap the name of the first feature ion 
     adduct_ion.append(feature.feature_ions[0].ion_notation)
 
+
 """
+#this block is unfinished 
 #make a list of adduct ions for SML table
 adduct_ions = []
 
@@ -212,15 +215,36 @@ inchi = get_data_SML(api_response_ft,inchi_list,"primary_annotation","structure_
 database_identifiers_list = []
 database_identifiers = get_data_SML(api_response_ft,database_identifiers_list,"primary_annotation","database_identifiers")
 
-print(len(chemical_name))           
-print(len(chemical_formula))        
-print(len(inchi))                   
-print(len(smiles))                  
-print(len(database_identifiers))  
 
 
-"""
-"""
+
+
+
+
+
+
+
+#make a SML dictionary and dataframe as it looks like in publication 
+
+SML_dict = {
+    "SFH": ["SMF"] * 937,
+    "SMF_ID": featureIds,             # other way: directly use command from earlier to save time 
+    "SME_ID_REFS": ["?"] * 937,       # to be completed 
+    "SME_ID_REFS_ambiguity_code": ["?"] * 937, 
+    "adduct_ion": adduct_ion,
+    "isotopomer": ["?"] * 937,
+    "exp_mass_to_charge": exp_mass_to_charge_list,
+    "charge": ["?"] * 937,            # to be completed, count the + signs in adduct ion if no charge information is available in the REST API?
+    "retention_time_in_seconds": rt_values,   # here also maybe add code directly  
+    "retention_time_in_seconds_start": ["?"] * 937,
+    "retention_time_in_seconds_end": ["?"] * 937 
+}
+
+SML_df = pd.DataFrame(data=SML_dict)
+SML = pd.concat([SML_df, intensities_df], axis=1)
+
+
+
 """
 # get data for every annotation for the SME table, code copied from intensity dictionary 
 
