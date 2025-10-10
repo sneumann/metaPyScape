@@ -178,6 +178,12 @@ for feature in api_response_ft:
     #actual_adduct_ion = feature.featureIons[0].ion_notation         #grap the name of the first feature ion 
     adduct_ion.append(feature.feature_ions[0].ion_notation)
 
+ccs = []
+
+for feature in api_response_ft: 
+    #actual_adduct_ion = feature.featureIons[0].ion_notation         #grap the name of the first feature ion 
+    ccs.append(feature.feature_ions[0].ccs)
+
 
 """
 #this block is unfinished 
@@ -216,17 +222,9 @@ database_identifiers_list = []
 database_identifiers = get_data_SML(api_response_ft,database_identifiers_list,"primary_annotation","database_identifiers")
 
 
-
-
-
-
-
-
-
-
 #make a SML dictionary and dataframe as it looks like in publication 
 
-SML_dict = {
+SMF_dict = {
     "SFH": ["SMF"] * 937,
     "SMF_ID": featureIds,             # other way: directly use command from earlier to save time 
     "SME_ID_REFS": ["?"] * 937,       # to be completed 
@@ -240,20 +238,35 @@ SML_dict = {
     "retention_time_in_seconds_end": ["?"] * 937 
 }
 
+SMF_df = pd.DataFrame(data=SMF_dict)
+SMF_df_wi = pd.concat([SMF_df, intensities_df], axis=1)
+
+
+SML_dict = {
+    "SMH": ["SML"] * 937,
+    "SML_ID": featureIds, 
+    "database_identifier": database_identifiers, 
+    "chemical_formula": chemical_formula,
+    "smiles": smiles, 
+    "inchi": inchi, 
+    "chemical_name": chemical_name, 
+    "theoretical_neutral_mass": ["?"] * 937, 
+    "adduct_ions": adduct_ion, 
+    "reliability": ["?"] * 937, 
+    "best_id_confidence_measure": ["?"] * 937, 
+    "best_id_confidence_value": ["?"] * 937,  
+    "abundance_study_variable": ["?"] * 937, 
+    "abundance_variation_study_variable": ["?"] * 937, 
+    "opt_ccs": ccs, 
+    "comment": ["?"] * 937
+}
+
 SML_df = pd.DataFrame(data=SML_dict)
-SML = pd.concat([SML_df, intensities_df], axis=1)
+SML_df_wi = pd.concat([SML_df, intensities_df], axis=1)
 
-
+# print(SMF_df_wi)
 
 """
-# get data for every annotation for the SME table, code copied from intensity dictionary 
-
-def get_data_annotation(,):
-    sample_data = []
-    for feature in intensities: 
-        sample_data.append(feature[sample_nr])
-    return sample_data
-
 
 # store the intensity data in a dictionary for all samples 
 # the list of sample numbers can be dynamic according to the number of samples (change later)
@@ -278,7 +291,7 @@ for annotation in all_annotations:
 
 # dataframe wäre hilfreich --> pandas 
 
-"""
+
 ##
 ## pymzTab-m
 ##
@@ -314,22 +327,57 @@ mtd = Metadata(
     colunit_small_molecule_evidence=None
 )
 
-sml = [
-    SmallMoleculeSummary(
-    prefix='SML', header_prefix='SMH', 
-    sml_id="notNone", 
-    smf_id_refs=None, 
-    database_identifier=None, 
-    chemical_formula=None, smiles=None, inchi=None, 
-    chemical_name=None, uri=None, 
-    theoretical_neutral_mass=None, adduct_ions=None, reliability=None, 
-    best_id_confidence_measure=None, best_id_confidence_value=None, 
-    abundance_assay=None, 
-    abundance_study_variable=None, 
-    abundance_variation_study_variable=None, 
-    opt=None, comment=None)
-]
 
+sml = SML_df_wi.apply(
+    lambda row: SmallMoleculeSummary(
+        prefix='SML', 
+        header_prefix='SMH', 
+        sml_id=row['SML_ID'], 
+        smf_id_refs=None, 
+        database_identifier=row['database_identifier'], 
+        chemical_formula=row['chemical_formula'], 
+        smiles=row['smiles'], 
+        inchi=row['inchi'], 
+        chemical_name=row['chemical_name'], 
+        uri=None, 
+        theoretical_neutral_mass=None, 
+        adduct_ions=row['adduct_ions'], 
+        reliability=None, 
+        best_id_confidence_measure=None, 
+        best_id_confidence_value=None, 
+        abundance_assay=row['abundance_assay[14]'],                 # how can i put every abundance assay column here?
+        abundance_study_variable=None, 
+        abundance_variation_study_variable=None, 
+        opt=row['opt_ccs'], 
+        comment=None
+    ),
+    axis=1
+).tolist()
+
+smf = SMF_df_wi.apply(
+    lambda row: SmallMoleculeFeature(
+        prefix='SMF',
+        header_prefix='SFH',
+        smf_id=row['SMF_ID'],
+        sme_id_refs=None,
+        sme_id_ref_ambiguity_code=None,
+        adduct_ion=None,
+        isotopomer=row['isotopomer'],
+        exp_mass_to_charge=row['exp_mass_to_charge'],
+        charge=row['charge'],
+        retention_time_in_seconds=row['retention_time_in_seconds'],
+        retention_time_in_seconds_start=None,
+        retention_time_in_seconds_end=None,
+        abundance_assay=row['abundance_assay[14]'],                 # how can i put every abundance assay column here? 
+        opt=None,
+        comment=None
+    ),
+    axis=1
+).tolist()
+
+#adduct_ion=None if row['adduct_ion'] == '?' else row['adduct_ion']
+"""
+#original code block, to be replaced by the dataframe SMF 
 smf = [
     SmallMoleculeFeature(
         prefix='SMF', header_prefix='SFH', 
@@ -341,6 +389,7 @@ smf = [
         abundance_assay=None, 
         opt=None, comment=None)
 ]
+"""
 
 sme = [
     SmallMoleculeEvidence(
@@ -365,11 +414,10 @@ mztab = MzTab(metadata=mtd,
               )
 
 # write the mztab JSON to file /tmp/mztab.json
-with open("/tmp/mztab.json", "w") as f:
+with open("example_SMF.json", "w") as f:
   print(mztab, file=f)
   
 try:
-    writeMzTabM("/tmp/mzTab-M.json", mztab)
+    writeMzTabM("example_SMF.json", mztab)
 except Exception as e:
     print("Error writing MzTab-M file: %s\n" % e)
-"""
