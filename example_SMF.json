@@ -29,7 +29,7 @@
               'uri': None},
  'small_molecule_evidence': [{'adduct_ion': None,
                               'charge': 'notNone',
-                              'chemical_formula': None,
+                              'chemical_formula': 'null',
                               'chemical_name': None,
                               'comment': None,
                               'database_identifier': 'notNone',

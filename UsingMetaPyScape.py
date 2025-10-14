@@ -289,14 +289,12 @@ for annotation in all_annotations:
     database_identifier = }
 """ 
 
-# dataframe wäre hilfreich --> pandas 
-
 
 ##
 ## pymzTab-m
 ##
 
-mtd = Metadata(
+MTD = Metadata(
     prefix='MTD', 
     mz_tab_version="2.0.0-M", 
     mz_tab_id=experiment.id,
@@ -327,41 +325,40 @@ mtd = Metadata(
     colunit_small_molecule_evidence=None
 )
 
-
-sml = SML_df_wi.apply(
+SML = SML_df_wi.apply(
     lambda row: SmallMoleculeSummary(
-        prefix='SML', 
-        header_prefix='SMH', 
-        sml_id=row['SML_ID'], 
-        smf_id_refs=None, 
-        database_identifier=row['database_identifier'], 
-        chemical_formula=row['chemical_formula'], 
-        smiles=row['smiles'], 
-        inchi=row['inchi'], 
-        chemical_name=row['chemical_name'], 
-        uri=None, 
-        theoretical_neutral_mass=None, 
-        adduct_ions=row['adduct_ions'], 
-        reliability=None, 
-        best_id_confidence_measure=None, 
-        best_id_confidence_value=None, 
-        abundance_assay=row['abundance_assay[14]'],                 # how can i put every abundance assay column here?
-        abundance_study_variable=None, 
-        abundance_variation_study_variable=None, 
-        opt=row['opt_ccs'], 
+        prefix='SML',
+        header_prefix='SMH',
+        sml_id=row['SML_ID'],
+        smf_id_refs=None,
+        database_identifier=row['database_identifier'],
+        chemical_formula=row['chemical_formula'],
+        smiles=row['smiles'],
+        inchi=row['inchi'],
+        chemical_name=row['chemical_name'],
+        uri=None,
+        theoretical_neutral_mass=None,
+        adduct_ions=row['adduct_ions'],
+        reliability=None,
+        best_id_confidence_measure=None,
+        best_id_confidence_value=None,
+        abundance_assay=row['abundance_assay[14]'],
+        abundance_study_variable=None,
+        abundance_variation_study_variable=None,
+        opt=row['opt_ccs'],
         comment=None
     ),
     axis=1
 ).tolist()
 
-smf = SMF_df_wi.apply(
+SMF = SMF_df_wi.apply(
     lambda row: SmallMoleculeFeature(
         prefix='SMF',
         header_prefix='SFH',
         smf_id=row['SMF_ID'],
         sme_id_refs=None,
         sme_id_ref_ambiguity_code=None,
-        adduct_ion=None,
+        adduct_ion=None,                  #actual test line, before: None              adduct_ion=row['adduct_ion'],
         isotopomer=row['isotopomer'],
         exp_mass_to_charge=row['exp_mass_to_charge'],
         charge=row['charge'],
@@ -389,15 +386,16 @@ smf = [
         abundance_assay=None, 
         opt=None, comment=None)
 ]
+
 """
 
-sme = [
+SME = [
     SmallMoleculeEvidence(
         prefix='SME', header_prefix='SEH', 
         sme_id="notNone", 
         evidence_input_id="notNone", 
         database_identifier="notNone", 
-        chemical_formula=None, smiles=None, inchi=None, chemical_name=None, 
+        chemical_formula="null", smiles=None, inchi=None, chemical_name=None, 
         uri=None, derivatized_form=None, adduct_ion=None, 
         exp_mass_to_charge="notNone", charge="notNone", 
         theoretical_mass_to_charge="notNone", spectra_ref="notNone", 
@@ -407,10 +405,11 @@ sme = [
     )    
 ]
 
-mztab = MzTab(metadata=mtd, 
-              small_molecule_summary=sml,
-              small_molecule_feature=smf,
-              small_molecule_evidence=sme
+mztab = MzTab(metadata=MTD, 
+              small_molecule_summary=SML,
+              small_molecule_feature=SMF,
+              small_molecule_evidence=SME, 
+              comment= None
               )
 
 # write the mztab JSON to file /tmp/mztab.json
