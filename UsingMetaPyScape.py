@@ -20,6 +20,7 @@ from mztab_m_swagger_client.models import Metadata
 from mztab_m_swagger_client.models import SmallMoleculeSummary
 from mztab_m_swagger_client.models import SmallMoleculeFeature
 from mztab_m_swagger_client.models import SmallMoleculeEvidence
+from mztab_m_swagger_client.models import Parameter
 
 
 from mztab_m_io import *
@@ -145,15 +146,7 @@ for idx, (sid, sname) in enumerate(zip(sample_Ids, sample_names), start=1):
         # put the mzML location if you have it; else leave None
         "location": None,
         "instrument_ref": None,
-        "format": {
-            "elementType": "Parameter",
-            "id": None,
-            "elementType": "element_type",
-            "cv_label": "MS",
-            "cv_accession": "MS:1000584",
-            "name": "mzML file",
-            "value": None
-        },
+        "format": None,
         "id_format": None,
         "fragmentation_method": None,
         "scan_polarity":  f"{getattr(featuretable_info, 'polarity', None)} scan" if getattr(featuretable_info, 'polarity', None) else None,
@@ -177,6 +170,21 @@ for idx, (sid, sname) in enumerate(zip(sample_Ids, sample_names), start=1):
     ms_run_entries.append(msrun)
     assay_entries.append(assay)
 
+# aq score list with CV values 
+
+cv_aq1_mz = Parameter(cv_label= None, cv_accession= None , name="mz_aq_score", value=None)
+cv_aq2_rt = Parameter(cv_label= None, cv_accession= None , name="rt_aq_score", value=None)
+cv_aq3_iso = Parameter(cv_label= None, cv_accession= None , name="isotope_pattern_aq_score", value=None)
+cv_aq4_msms = Parameter(cv_label= None, cv_accession= None , name="msms_aq_score", value=None)
+cv_aq5_ccs = Parameter(cv_label= None, cv_accession= None , name="ccs_aq_score", value=None)
+cv_aq6_mzdevi = Parameter(cv_label= None, cv_accession= None , name="mz_deviation", value=None)
+cv_aq7_rtdevi = Parameter(cv_label= None, cv_accession= None , name="rt_deviation", value=None)
+cv_aq8_isoscore = Parameter(cv_label= None, cv_accession= None , name="isotope_pattern_score", value=None)
+cv_aq9_msmsscore = Parameter(cv_label= None, cv_accession= None , name="msms_score", value=None)
+cv_aq10_ccsdevi = Parameter(cv_label= None, cv_accession= None , name="ccs_deviation", value=None)
+cv_aq11_annomod = Parameter(cv_label= None, cv_accession= None , name="annotation_modifiers", value=None)
+
+aq_scores = [cv_aq1_mz, cv_aq2_rt, cv_aq3_iso, cv_aq4_msms, cv_aq5_ccs, cv_aq6_mzdevi, cv_aq7_rtdevi, cv_aq8_isoscore, cv_aq9_msmsscore, cv_aq10_ccsdevi, cv_aq11_annomod]
 
 # getting intensity values for every sample 
 
@@ -371,11 +379,13 @@ MTD = Metadata(
     small_molecule_quantification_unit="notNone", 
     small_molecule_feature_quantification_unit="notNone", 
     small_molecule_identification_reliability=None, 
-    id_confidence_measure="notNone" ,                               #list of the aq scores? 
+    id_confidence_measure=aq_scores,                               #list of the aq scores? 
     colunit_small_molecule=None, 
     colunit_small_molecule_feature=None, 
     colunit_small_molecule_evidence=None
 )
+
+abundance_cols = [f'abundance_assay[{i}]' for i in range(1, 19)]
 
 SML = SML_df_wi.apply(
     lambda row: SmallMoleculeSummary(
@@ -394,10 +404,10 @@ SML = SML_df_wi.apply(
         reliability=None,
         best_id_confidence_measure=None,
         best_id_confidence_value=None,
-        abundance_assay=row['abundance_assay[14]'],
+        abundance_assay=[row[col] for col in abundance_cols],
         abundance_study_variable=None,
         abundance_variation_study_variable=None,
-        opt=row['opt_ccs'],
+        opt= {"identifier": "global_ccs", "param": None, "value": row['opt_ccs']},
         comment=None
     ),
     axis=1
@@ -417,29 +427,14 @@ SMF = SMF_df_wi.apply(
         retention_time_in_seconds=row['retention_time_in_seconds'],
         retention_time_in_seconds_start=None,
         retention_time_in_seconds_end=None,
-        abundance_assay=row['abundance_assay[14]'],                 # how can i put every abundance assay column here? 
-        opt=None,
+        abundance_assay=[row[col] for col in abundance_cols],                 # how can i put every abundance assay column here? 
+        opt= {"identifier": "global_ccs", "param": None, "value": row['opt_ccs']},
         comment=None
     ),
     axis=1
 ).tolist()
 
 #adduct_ion=None if row['adduct_ion'] == '?' else row['adduct_ion']
-"""
-#original code block, to be replaced by the dataframe SMF 
-smf = [
-    SmallMoleculeFeature(
-        prefix='SMF', header_prefix='SFH', 
-        smf_id="notNone", 
-        sme_id_refs=None, sme_id_ref_ambiguity_code=None, 
-        adduct_ion=None, isotopomer=None, 
-        exp_mass_to_charge=666, charge=1, 
-        retention_time_in_seconds=None, retention_time_in_seconds_start=None, retention_time_in_seconds_end=None, 
-        abundance_assay=None, 
-        opt=None, comment=None)
-]
-
-"""
 
 SME = [
     SmallMoleculeEvidence(
