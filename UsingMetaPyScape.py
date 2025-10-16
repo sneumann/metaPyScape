@@ -13,13 +13,14 @@ import yaml
 import pandas as pd
 
 # pymzTab-m
-import mztab_m_swagger_client
+from mztab_m_swagger_client import ApiClient, Configuration, ValidateApi
 from mztab_m_swagger_client.rest import ApiException
 from mztab_m_swagger_client.models import MzTab
 from mztab_m_swagger_client.models import Metadata
 from mztab_m_swagger_client.models import SmallMoleculeSummary
 from mztab_m_swagger_client.models import SmallMoleculeFeature
 from mztab_m_swagger_client.models import SmallMoleculeEvidence
+
 
 from mztab_m_io import *
 
@@ -43,11 +44,11 @@ api_client = metaPyScape.ApiClient(configuration=configuration,
 project_api = metaPyScape.ProjectsApi(api_client)
 featuretable_api = metaPyScape.FeaturetableApi(api_client)
 samples_api = metaPyScape.SamplesApi(api_client)
+ccs_api = metaPyScape.CcspredictApi(api_client)
 
 # what is this block exactly for? getting project information, are these two approaches for getting the same information?
 
 #right now, this code block is not needed (07.10.)
-
 
 try:
     api_response_project = project_api.list_all_projects()
@@ -61,13 +62,13 @@ try:
     ## A Test Project
     ## one could get the project id out of api_response instead of hardcoding
     projectId = "87d912bb-4153-4443-bf2a-1036548a0961"
-    projectInfo = project_api.retrieve_project_info(projectId)
+    projectInfo = project_api.retrieve_project_info(projectId)          
     project = project_api.retrieve_project(projectId)
     # Use the first experiment
     experiment = project.experiments[0]
+    featuretable_info = experiment.feature_tables[0]
 except ApiException as e:
     print("Exception when getting project infos: %s\n" % e)
-
 
 
 # getting sample information (--> for metadata ms_run, assay)
@@ -76,6 +77,7 @@ except ApiException as e:
 try:
     ## A Test featuretableId, hardcoded. change later
     featuretableId = "2c32680e-debc-4f77-8970-78cf547d9875"
+    #featuretableld = featuretable_info.id          this is more dynamic 
     api_response_sample = samples_api.list_all_samples(featuretableId)
     #pprint.pp(api_response_sample)
 except ApiException as e:
@@ -130,8 +132,51 @@ sample_Ids = get_data(sample_info, sampleIds_list, "id")
 sample_names_list = []
 sample_names = get_data(sample_info, sample_names_list, "name")
 
-#print(api_response_intensity.intensities[0])
-#print(type(api_response_intensity.intensities[0]))
+# build lists of nested dicts (one per sample)
+ms_run_entries = []
+assay_entries = []
+
+for idx, (sid, sname) in enumerate(zip(sample_Ids, sample_names), start=1):
+    msrun = {
+        "elementType": "MsRun",
+        "id": idx,
+        "elementType": "element_type",
+        "name": None,
+        # put the mzML location if you have it; else leave None
+        "location": None,
+        "instrument_ref": None,
+        "format": {
+            "elementType": "Parameter",
+            "id": None,
+            "elementType": "element_type",
+            "cv_label": "MS",
+            "cv_accession": "MS:1000584",
+            "name": "mzML file",
+            "value": None
+        },
+        "id_format": None,
+        "fragmentation_method": None,
+        "scan_polarity":  f"{getattr(featuretable_info, 'polarity', None)} scan" if getattr(featuretable_info, 'polarity', None) else None,
+        "hash": None,
+        "hash_method": None
+    }
+
+    assay = {
+        "elementType": "Assay",
+        "id": idx,
+        "elementType": "element_type",
+        "name": sname,
+        "custom": None,
+        "external_uri": None,
+        # reference the sample dict (inlined); some writers expect a reference object, but this matches your example
+        "sample_ref": None,
+        # list of ms_run refs (we put the full ms_run dict inline to match your example)
+        "ms_run_ref": [msrun]
+    }
+
+    ms_run_entries.append(msrun)
+    assay_entries.append(assay)
+
 
 # getting intensity values for every sample 
 
@@ -221,6 +266,13 @@ inchi = get_data_SML(api_response_ft,inchi_list,"primary_annotation","structure_
 database_identifiers_list = []
 database_identifiers = get_data_SML(api_response_ft,database_identifiers_list,"primary_annotation","database_identifiers")
 
+# #make a list of aq_scores 
+# example_feature = api_response_ft[42]
+# aq_score_names = list(example_feature.primary_annotation.aq_scores) 
+
+# print(aq_score_names)
+
+
 
 #make a SML dictionary and dataframe as it looks like in publication 
 
@@ -297,20 +349,20 @@ for annotation in all_annotations:
 MTD = Metadata(
     prefix='MTD', 
     mz_tab_version="2.0.0-M", 
-    mz_tab_id=experiment.id,
-    title=projectInfo.name, 
-    description=projectInfo.description, 
-    sample_processing="standard protocols", 
+    mz_tab_id=featuretable_info.id,
+    title=featuretable_info.name, 
+    description=projectInfo.description,                            #das passt nicht bzw kommt aus der project_info und ist nciht spezifisch für die featuretable 
+    sample_processing=featuretable_info.processing_workflow, 
     instrument=None, 
     software="MetaboScape", 
     publication=None, 
     contact=projectInfo.owner, 
     uri=None, 
     external_study_uri=None, 
-    quantification_method="label-free", 
-    study_variable="notNone", 
-    ms_run="notNone", 
-    assay="notNone", 
+    quantification_method="label-free",                             #woher soll die kommen? 
+    study_variable="undefined",                                     
+    ms_run=ms_run_entries, 
+    assay=assay_entries,                                   #  "ms_run_ref": ms_run_pre}, how do i implement ms_run_ref the right way? 
     sample=None, 
     custom=None, 
     cv="notNone", 
@@ -319,7 +371,7 @@ MTD = Metadata(
     small_molecule_quantification_unit="notNone", 
     small_molecule_feature_quantification_unit="notNone", 
     small_molecule_identification_reliability=None, 
-    id_confidence_measure="notNone" , 
+    id_confidence_measure="notNone" ,                               #list of the aq scores? 
     colunit_small_molecule=None, 
     colunit_small_molecule_feature=None, 
     colunit_small_molecule_evidence=None
@@ -409,8 +461,20 @@ mztab = MzTab(metadata=MTD,
               small_molecule_summary=SML,
               small_molecule_feature=SMF,
               small_molecule_evidence=SME, 
-              comment= None
               )
+
+"""
+configuration_mzTab = Configuration()
+# configuration_mzTab.host = "https://apps.lifs-tools.org/mztabvalidator/rest/v2/validate?level=info&maxErrors=100&semanticValidation=false"
+configuration_mzTab.host = "http://localhost"
+
+
+api_client_mzTab = ApiClient(configuration=configuration_mzTab)
+val = ValidateApi(api_client=api_client_mzTab)
+res = val.validate_mz_tab_file(mztab)
+with open("out.txt", "w") as f:
+  print(res, file=f)
+"""
 
 # write the mztab JSON to file /tmp/mztab.json
 with open("example_SMF.json", "w") as f:
