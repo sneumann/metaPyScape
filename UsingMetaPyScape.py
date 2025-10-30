@@ -42,72 +42,62 @@ api_client = metaPyScape.ApiClient(configuration=configuration,
                                    header_value=config.get("api-key", None))
 
 
+# create an instance of the API class for the subsections of MetaboScape REST API 
+
 project_api = metaPyScape.ProjectsApi(api_client)
 featuretable_api = metaPyScape.FeaturetableApi(api_client)
 samples_api = metaPyScape.SamplesApi(api_client)
-ccs_api = metaPyScape.CcspredictApi(api_client)
+#ccs_api = metaPyScape.CcspredictApi(api_client)
 
-# what is this block exactly for? getting project information, are these two approaches for getting the same information?
 
-#right now, this code block is not needed (07.10.)
+#GET a list of all projects in one MetaboScape instance
 
 try:
     api_response_project = project_api.list_all_projects()
-    # print as JSON
-    # pprint.pp(api_response_project)
 except ApiException as e:
     print("Exception when calling Project->list_all_projects: %s\n" % e)
 
+#projectId = api_response_project[0].id                          # take the first project out of the list of projects
+projectId = "87d912bb-4153-4443-bf2a-1036548a0961"
+
+#GET information for defined project based on projectId
 
 try:
-    ## A Test Project
-    ## one could get the project id out of api_response instead of hardcoding
-    projectId = "87d912bb-4153-4443-bf2a-1036548a0961"
     projectInfo = project_api.retrieve_project_info(projectId)          
     project = project_api.retrieve_project(projectId)
-    # Use the first experiment
-    experiment = project.experiments[0]
-    featuretable_info = experiment.feature_tables[0]
 except ApiException as e:
     print("Exception when getting project infos: %s\n" % e)
 
 
-# getting sample information (--> for metadata ms_run, assay)
-# sample information 
+experiment = project.experiments[0]                             # Use the first experiment of the project
+featuretable_info = experiment.feature_tables[0]                # Use the first featuretable of the experiment
+#featuretableId = featuretable_info.id                           # define the featuretableId 
+featuretableId = "2c32680e-debc-4f77-8970-78cf547d9875"
 
-try:
-    ## A Test featuretableId, hardcoded. change later
-    featuretableId = "2c32680e-debc-4f77-8970-78cf547d9875"
-    #featuretableld = featuretable_info.id          this is more dynamic 
+# GET sample information for samples of defined featuretable based on featuretableId
+
+try:   
     api_response_sample = samples_api.list_all_samples(featuretableId)
-    #pprint.pp(api_response_sample)
 except ApiException as e:
     print("Exception when calling SamplesApi->list_all_samples: %s\n" % e)
 
 
-#defining the first sample (hardcoded), change later to more dynamic code 
-
-first_sample = api_response_sample[0]       #first_sample is an object of class metaPyScape.models.sample.Sample
-sample_info = first_sample.analysis         #sample_info is a list, each entry in the list has type metaPyScape.models.analysis.Analysis
-
-
-# get featuretable information
+# get featuretable data and intensity matrix for defined featuretable based on featuretableId
 
 try:
-    # Fetches a specific Feature Table based on its ID
-    featuretableId = "2c32680e-debc-4f77-8970-78cf547d9875"
     api_response_ft = featuretable_api.retrieve_feature_table(featuretableId)
     api_response_intensity = featuretable_api.retrieve_intensity_matrix(featuretableId)         # of type class 'metaPyScape.models.feature_matrix.FeatureMatrix'
-    # pprint.pp(api_response_ft)
 except ApiException as e:
     print("Exception when calling FeaturetableApi->retrieve_feature_table: %s\n" % e)
 
+
+## block for used functions 
 
 # extract information from featuretables as a list 
 
 def get_data(data_list, list_name, column): 
     """
-    takes a data_list, an empty list, and the name of the wanted column to extract data from as a string
+    takes a data_list, an empty list, and the name of the APi endpoint of interest to extract data from as a string
     returns the given list with column data for every entry of original list
     """
     for entry in data_list: 
@@ -115,27 +105,52 @@ def get_data(data_list, list_name, column):
         list_name.append(actual_info)
     return list_name
 
+# built a function and then do a for loop over the function: 
 
-#getting information out of featuretable and sample_info
+def get_sample_intensity(intensities, sample_nr):
+    """
+    takes the intensity matrix and a sample number as input, returns a list with intensity values for the given sample number 
+    """
+    sample_data = []
+    for feature in intensities: 
+        sample_data.append(feature[sample_nr])
+    return sample_data
 
-mass_list = []
-mass = get_data(api_response_ft, mass_list, "mass")
+# extract nested information from featuretables as a list
 
-featureId_list = []
-featureIds = get_data(api_response_ft, featureId_list, "id")
+def get_data_SML(api_response_ft, list_name, column_1, column_2):
+    """
+    takes a data_list, an empty list, and the name of two nested columns to extract data from as strings
+    """
+    for feature in api_response_ft: 
+        if getattr(feature, column_1) is None:
+            list_name.append("null")
+        else:                                                      
+            value = getattr(getattr(feature, column_1), column_2)
+            list_name.append(value)                                     
+    return list_name 
 
-rt_list = []
-rt_values = get_data(api_response_ft, rt_list, "rt_in_seconds")
+## collect information for mzTab-M metadata 
+
+# data about experimental design: ms_run, assay 
+
+# actual test file: 18 samples stored in one official MetaboScape REST API sample, 
+# --> define first_sample and get analysis info from there
+
+first_sample = api_response_sample[0]                           # contains all 18 samples of the feature table in test project (source comparison IPB data)
+sample_info = first_sample.analysis                             # sample_info is a list, each entry in the list has type metaPyScape.models.analysis.Analysis
 
 sampleIds_list = []
-sample_Ids = get_data(sample_info, sampleIds_list, "id")
+sample_Ids = get_data(sample_info, sampleIds_list, "id")        # list of sample Ids
 
 sample_names_list = []
-sample_names = get_data(sample_info, sample_names_list, "name")
+sample_names = get_data(sample_info, sample_names_list, "name") # list of sample names
 
 # build lists of nested dicts (one per sample)
 ms_run_entries = []
 assay_entries = []
+
+# loop over sample Ids and names to build ms_run and assay entries
 
 for idx, (sid, sname) in enumerate(zip(sample_Ids, sample_names), start=1):
     msrun = {
@@ -170,7 +185,8 @@ for idx, (sid, sname) in enumerate(zip(sample_Ids, sample_names), start=1):
     ms_run_entries.append(msrun)
     assay_entries.append(assay)
 
-# aq score list with CV values 
+# id_confidence_measure: list of aq scores 
+# define Parameter (CV) objects for each aq score 
 
 cv_aq1_mz = Parameter(cv_label= None, cv_accession= None , name="mz_aq_score", value=None)
 cv_aq2_rt = Parameter(cv_label= None, cv_accession= None , name="rt_aq_score", value=None)
@@ -186,78 +202,51 @@ cv_aq11_annomod = Parameter(cv_label= None, cv_accession= None , name="annotatio
 
 aq_scores = [cv_aq1_mz, cv_aq2_rt, cv_aq3_iso, cv_aq4_msms, cv_aq5_ccs, cv_aq6_mzdevi, cv_aq7_rtdevi, cv_aq8_isoscore, cv_aq9_msmsscore, cv_aq10_ccsdevi, cv_aq11_annomod]
 
+
+## collect information for mzTab-M SML, SMF and SME 
+
 # getting intensity values for every sample 
 
-intensities = api_response_intensity.intensities
-
-
-#built a function and then do a for loop over the function: 
-
-def get_sample_intensity(intensities, sample_nr):
-    sample_data = []
-    for feature in intensities: 
-        sample_data.append(feature[sample_nr])
-    return sample_data
+intensities = api_response_intensity.intensities 
 
 
 # store the intensity data in a dictionary for all samples 
 # the list of sample numbers can be dynamic according to the number of samples (change later)
 
-sample_numbers = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17]
-intensity_data = {}
+#sample_numbers = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17]     # hardcoded for 18 samples
+sample_numbers = list(range(1, len(sample_names) + 1))              # dynamic according to number of samples 
+intensity_data = {}                                                 
+
+# loop over sample numbers and get intensity data for each sample
+# make a dictionary with abundance_assay[sample_nr] as key and intensity list as value 
 
 for sample_nr in sample_numbers: 
     variable_name = f'abundance_assay[{sample_nr+1}]'
     intensity_data[variable_name] = get_sample_intensity(intensities, sample_nr)
 
-# --> a dictionary can be easily transformed to a df with: 
+
+# transform the dictionary to a df containing intensity data. 
 
 intensities_df = pd.DataFrame(data=intensity_data)
 
-
-
-#make a list of the mz values (dont know if this is fine, because a feature could have several feature ions)
+#make a list of the mz values 
 exp_mass_to_charge_list = []
 
 for feature in api_response_ft: 
-    #actual_mass_to_charge = feature.featureIons[0].mz         #grap the mz value of the first feature ion 
+    #actual_mass_to_charge = feature.featureIons[0].mz              # grap the mz value of the first feature ion 
     exp_mass_to_charge_list.append(feature.feature_ions[0].mz)
 
 
-#make a list of adduct ion for SMF,SME table
-adduct_ion = []
+#collect feature information as lists 
 
-for feature in api_response_ft: 
-    #actual_adduct_ion = feature.featureIons[0].ion_notation         #grap the name of the first feature ion 
-    adduct_ion.append(feature.feature_ions[0].ion_notation)
+mass_list = []
+mass = get_data(api_response_ft, mass_list, "mass")                 # list of mass values (not used in mzTab-M) 
 
-ccs = []
+featureId_list = []
+featureIds = get_data(api_response_ft, featureId_list, "id")        # list of feature Ids
 
-for feature in api_response_ft: 
-    #actual_adduct_ion = feature.featureIons[0].ion_notation         #grap the name of the first feature ion 
-    ccs.append(feature.feature_ions[0].ccs)
-
-
-"""
-#this block is unfinished 
-#make a list of adduct ions for SML table
-adduct_ions = []
-
-for feature in api_response_ft: 
-    #actual_adduct_ion = feature.featureIons[0].ion_notation         #grap the names of all feature ions
-    feature_ions = []
-    adduct_ions.append(feature.featureIons.ion_notation)
-"""
-
-def get_data_SML(api_response_ft, list_name, column_1, column_2):
-    for feature in api_response_ft: 
-
-        if getattr(feature, column_1) is None:
-            list_name.append("null")
-        else:                                                       #grap the chemical name of the primary annotation and add to list of chemical names 
-            value = getattr(getattr(feature, column_1), column_2)
-            list_name.append(value)                                     
-    return list_name 
+rt_list = []
+rt_values = get_data(api_response_ft, rt_list, "rt_in_seconds")     # list of rt values
 
 chemical_name_list = []
 chemical_name = get_data_SML(api_response_ft,chemical_name_list,"primary_annotation","name")
@@ -274,15 +263,19 @@ inchi = get_data_SML(api_response_ft,inchi_list,"primary_annotation","structure_
 database_identifiers_list = []
 database_identifiers = get_data_SML(api_response_ft,database_identifiers_list,"primary_annotation","database_identifiers")
 
-# #make a list of aq_scores 
-# example_feature = api_response_ft[42]
-# aq_score_names = list(example_feature.primary_annotation.aq_scores) 
+adduct_ion = []
+for feature in api_response_ft: 
+    #actual_adduct_ion = feature.featureIons[0].ion_notation         # grap the name of the first feature ion 
+    adduct_ion.append(feature.feature_ions[0].ion_notation)
 
-# print(aq_score_names)
+ccs = []
+for feature in api_response_ft: 
+    #actual_adduct_ion = feature.featureIons[0].ion_notation         #grap the name of the first feature ion 
+    ccs.append(feature.feature_ions[0].ccs)
 
 
 
-#make a SML dictionary and dataframe as it looks like in publication 
+# make a SML dictionary and dataframe with structure of mzTab-M SML and SMF tables
 
 SMF_dict = {
     "SFH": ["SMF"] * 937,
@@ -324,42 +317,20 @@ SML_dict = {
 SML_df = pd.DataFrame(data=SML_dict)
 SML_df_wi = pd.concat([SML_df, intensities_df], axis=1)
 
-# print(SMF_df_wi)
-
-"""
-
-# store the intensity data in a dictionary for all samples 
-# the list of sample numbers can be dynamic according to the number of samples (change later)
-
-sample_numbers = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17]
-intensity_data = {}
-
-for sample_nr in sample_numbers: 
-    variable_name = f'abundance_assay[{sample_nr+1}]'
-    intensity_data[variable_name] = get_sample_intensity(intensities, sample_nr)
-
-for annotation in all_annotations: 
-    {featureID = 
-    annotationID = 
-    name = 
-    formula = 
-    MS_spectra_ref = 
-    inchi = 
-    smiles = 
-    database_identifier = }
-""" 
 
 
-##
+## create mzTab-M sections one by one 
 ## pymzTab-m
 ##
+
+# create Metadata object
 
 MTD = Metadata(
     prefix='MTD', 
     mz_tab_version="2.0.0-M", 
     mz_tab_id=featuretable_info.id,
     title=featuretable_info.name, 
-    description=projectInfo.description,                            #das passt nicht bzw kommt aus der project_info und ist nciht spezifisch für die featuretable 
+    description=projectInfo.description,                            # das passt nicht bzw kommt aus der project_info und ist nciht spezifisch für die featuretable 
     sample_processing=featuretable_info.processing_workflow, 
     instrument=None, 
     software="MetaboScape", 
@@ -367,10 +338,10 @@ MTD = Metadata(
     contact=projectInfo.owner, 
     uri=None, 
     external_study_uri=None, 
-    quantification_method="label-free",                             #woher soll die kommen? 
+    quantification_method="label-free",                             # woher soll die kommen? 
     study_variable="undefined",                                     
     ms_run=ms_run_entries, 
-    assay=assay_entries,                                   #  "ms_run_ref": ms_run_pre}, how do i implement ms_run_ref the right way? 
+    assay=assay_entries,                                            # "ms_run_ref": ms_run_pre}, how do i implement ms_run_ref the right way? 
     sample=None, 
     custom=None, 
     cv="notNone", 
@@ -379,13 +350,13 @@ MTD = Metadata(
     small_molecule_quantification_unit="notNone", 
     small_molecule_feature_quantification_unit="notNone", 
     small_molecule_identification_reliability=None, 
-    id_confidence_measure=aq_scores,                               #list of the aq scores? 
+    id_confidence_measure=aq_scores,                                # list of the aq scores? 
     colunit_small_molecule=None, 
     colunit_small_molecule_feature=None, 
     colunit_small_molecule_evidence=None
 )
 
-abundance_cols = [f'abundance_assay[{i}]' for i in range(1, 19)]
+abundance_cols = [f'abundance_assay[{i}]' for i in range(1, 19)]    # define abundance assay columns dynamically according to number of samples
 
 SML = SML_df_wi.apply(
     lambda row: SmallMoleculeSummary(
@@ -404,7 +375,7 @@ SML = SML_df_wi.apply(
         reliability=None,
         best_id_confidence_measure=None,
         best_id_confidence_value=None,
-        abundance_assay=[row[col] for col in abundance_cols],
+        abundance_assay=[row[col] for col in abundance_cols],       # make a list of values from all samples for each row, each row represents one feature
         abundance_study_variable=None,
         abundance_variation_study_variable=None,
         opt= {"identifier": "global_ccs", "param": None, "value": row['opt_ccs']},
@@ -434,7 +405,6 @@ SMF = SMF_df_wi.apply(
     axis=1
 ).tolist()
 
-#adduct_ion=None if row['adduct_ion'] == '?' else row['adduct_ion']
 
 SME = [
     SmallMoleculeEvidence(
@@ -452,24 +422,14 @@ SME = [
     )    
 ]
 
+# create the MzTab object
+
 mztab = MzTab(metadata=MTD, 
               small_molecule_summary=SML,
               small_molecule_feature=SMF,
               small_molecule_evidence=SME, 
               )
 
-"""
-configuration_mzTab = Configuration()
-# configuration_mzTab.host = "https://apps.lifs-tools.org/mztabvalidator/rest/v2/validate?level=info&maxErrors=100&semanticValidation=false"
-configuration_mzTab.host = "http://localhost"
-
-
-api_client_mzTab = ApiClient(configuration=configuration_mzTab)
-val = ValidateApi(api_client=api_client_mzTab)
-res = val.validate_mz_tab_file(mztab)
-with open("out.txt", "w") as f:
-  print(res, file=f)
-"""
 
 # write the mztab JSON to file /tmp/mztab.json
 with open("example_SMF.json", "w") as f:
