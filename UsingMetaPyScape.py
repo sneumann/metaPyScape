@@ -44,23 +44,24 @@ api_client = metaPyScape.ApiClient(configuration=configuration,
 
 # create an instance of the API class for the subsections of MetaboScape REST API 
 
+
 project_api = metaPyScape.ProjectsApi(api_client)
 featuretable_api = metaPyScape.FeaturetableApi(api_client)
 samples_api = metaPyScape.SamplesApi(api_client)
-#ccs_api = metaPyScape.CcspredictApi(api_client)
+ccs_api = metaPyScape.CcspredictApi(api_client)
 
 
-#GET a list of all projects in one MetaboScape instance
+# GET a list of all projects in one MetaboScape instance by requesting data from ProjectApi
 
 try:
-    api_response_project = project_api.list_all_projects()
+    projectlist = project_api.list_all_projects() 
 except ApiException as e:
     print("Exception when calling Project->list_all_projects: %s\n" % e)
 
-#projectId = api_response_project[0].id                          # take the first project out of the list of projects
-projectId = "87d912bb-4153-4443-bf2a-1036548a0961"
+projectId = projectlist[0].id                          # take the first project out of the list of projects
+#projectId = "87d912bb-4153-4443-bf2a-1036548a0961"
 
-#GET information for defined project based on projectId
+# GET information for defined project based on projectId by requesting data from ProjectApi
 
 try:
     projectInfo = project_api.retrieve_project_info(projectId)          
@@ -71,8 +72,8 @@ except ApiException as e:
 
 experiment = project.experiments[0]                             # Use the first experiment of the project
 featuretable_info = experiment.feature_tables[0]                # Use the first featuretable of the experiment
-#featuretableId = featuretable_info.id                           # define the featuretableId 
-featuretableId = "2c32680e-debc-4f77-8970-78cf547d9875"
+featuretableId = featuretable_info.id                           # define the featuretableId 
+#featuretableId = "2c32680e-debc-4f77-8970-78cf547d9875"
 
 # GET sample information for samples of defined featuretable based on featuretableId
 
@@ -91,13 +92,14 @@ except ApiException as e:
     print("Exception when calling FeaturetableApi->retrieve_feature_table: %s\n" % e)
 
 
-## block for used functions 
+## block for functions 
 
 # extract information from featuretables as a list 
 
 def get_data(data_list, list_name, column): 
     """
-    takes a data_list, an empty list, and the name of the APi endpoint of interest to extract data from as a string
+    takes a data_list, an empty list, and the name of the APi endpoint of interest 
+    to extract data from as a string, 
     returns the given list with column data for every entry of original list
     """
     for entry in data_list: 
@@ -109,7 +111,8 @@ def get_data(data_list, list_name, column):
 
 def get_sample_intensity(intensities, sample_nr):
     """
-    takes the intensity matrix and a sample number as input, returns a list with intensity values for the given sample number 
+    takes the intensity matrix and a sample number as input, 
+    returns a list with intensity values for the given sample number 
     """
     sample_data = []
     for feature in intensities: 
@@ -118,9 +121,11 @@ def get_sample_intensity(intensities, sample_nr):
 
 # extract nested information from featuretables as a list
 
-def get_data_SML(api_response_ft, list_name, column_1, column_2):
+def get_nested_data(api_response_ft, list_name, column_1, column_2):
     """
-    takes a data_list, an empty list, and the name of two nested columns to extract data from as strings
+    takes a data_list, an empty list, and the name of two nested columns 
+    of the APi endpoint of interest to extract data from, 
+    returns the given list with column data for every entry of original list
     """
     for feature in api_response_ft: 
         if getattr(feature, column_1) is None:
@@ -209,12 +214,10 @@ aq_scores = [cv_aq1_mz, cv_aq2_rt, cv_aq3_iso, cv_aq4_msms, cv_aq5_ccs, cv_aq6_m
 
 intensities = api_response_intensity.intensities 
 
-
 # store the intensity data in a dictionary for all samples 
-# the list of sample numbers can be dynamic according to the number of samples (change later)
 
-#sample_numbers = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17]     # hardcoded for 18 samples
-sample_numbers = list(range(1, len(sample_names) + 1))              # dynamic according to number of samples 
+sample_numbers = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17]     # hardcoded for 18 samples
+#sample_numbers = list(range(1, len(sample_names) + 1))              # dynamic according to number of samples 
 intensity_data = {}                                                 
 
 # loop over sample numbers and get intensity data for each sample
@@ -227,14 +230,7 @@ for sample_nr in sample_numbers:
 
 # transform the dictionary to a df containing intensity data. 
 
-intensities_df = pd.DataFrame(data=intensity_data)
-
-#make a list of the mz values 
-exp_mass_to_charge_list = []
-
-for feature in api_response_ft: 
-    #actual_mass_to_charge = feature.featureIons[0].mz              # grap the mz value of the first feature ion 
-    exp_mass_to_charge_list.append(feature.feature_ions[0].mz)
+intensities_df = pd.DataFrame(data=intensity_data) 
 
 
 #collect feature information as lists 
@@ -249,33 +245,39 @@ rt_list = []
 rt_values = get_data(api_response_ft, rt_list, "rt_in_seconds")     # list of rt values
 
 chemical_name_list = []
-chemical_name = get_data_SML(api_response_ft,chemical_name_list,"primary_annotation","name")
+chemical_name = get_nested_data(api_response_ft,chemical_name_list,"primary_annotation","name")
 
 chemical_formula_list = []
-chemical_formula = get_data_SML(api_response_ft,chemical_formula_list,"primary_annotation","formula")
+chemical_formula = get_nested_data(api_response_ft,chemical_formula_list,"primary_annotation","formula")
 
 smiles_list = []
-smiles = get_data_SML(api_response_ft,smiles_list,"primary_annotation","structure_smiles")
+smiles = get_nested_data(api_response_ft,smiles_list,"primary_annotation","structure_smiles")
 
 inchi_list = []
-inchi = get_data_SML(api_response_ft,inchi_list,"primary_annotation","structure_inchi")
+inchi = get_nested_data(api_response_ft,inchi_list,"primary_annotation","structure_inchi")
 
 database_identifiers_list = []
-database_identifiers = get_data_SML(api_response_ft,database_identifiers_list,"primary_annotation","database_identifiers")
+database_identifiers = get_nested_data(api_response_ft,database_identifiers_list,"primary_annotation","database_identifiers")
 
+#make a list of the mz values 
+
+exp_mass_to_charge_list = []
+for feature in api_response_ft: 
+    exp_mass_to_charge_list.append(feature.feature_ions[0].mz)
+
+# make a list of the adduct ions
 adduct_ion = []
 for feature in api_response_ft: 
-    #actual_adduct_ion = feature.featureIons[0].ion_notation         # grap the name of the first feature ion 
     adduct_ion.append(feature.feature_ions[0].ion_notation)
 
+# make a list of the ccs values
 ccs = []
 for feature in api_response_ft: 
-    #actual_adduct_ion = feature.featureIons[0].ion_notation         #grap the name of the first feature ion 
     ccs.append(feature.feature_ions[0].ccs)
 
 
 
-# make a SML dictionary and dataframe with structure of mzTab-M SML and SMF tables
+# make a SMF/SML dictionary and dataframe with structure of mzTab-M SML and SMF tables
 
 SMF_dict = {
     "SFH": ["SMF"] * 937,
@@ -332,12 +334,10 @@ MTD = Metadata(
     title=featuretable_info.name, 
     description=projectInfo.description,                            # das passt nicht bzw kommt aus der project_info und ist nciht spezifisch für die featuretable 
     sample_processing=featuretable_info.processing_workflow, 
-    instrument=None, 
-    software="MetaboScape", 
+    instrument=None, software="MetaboScape", 
     publication=None, 
     contact=projectInfo.owner, 
-    uri=None, 
-    external_study_uri=None, 
+    uri=None, external_study_uri=None, 
     quantification_method="label-free",                             # woher soll die kommen? 
     study_variable="undefined",                                     
     ms_run=ms_run_entries, 
@@ -345,7 +345,7 @@ MTD = Metadata(
     sample=None, 
     custom=None, 
     cv="notNone", 
-    database="inhouse ?", 
+    database="inhouse?", 
     derivatization_agent=None, 
     small_molecule_quantification_unit="notNone", 
     small_molecule_feature_quantification_unit="notNone", 
@@ -355,6 +355,9 @@ MTD = Metadata(
     colunit_small_molecule_feature=None, 
     colunit_small_molecule_evidence=None
 )
+
+
+# create SML object
 
 abundance_cols = [f'abundance_assay[{i}]' for i in range(1, 19)]    # define abundance assay columns dynamically according to number of samples
 
@@ -378,11 +381,14 @@ SML = SML_df_wi.apply(
         abundance_assay=[row[col] for col in abundance_cols],       # make a list of values from all samples for each row, each row represents one feature
         abundance_study_variable=None,
         abundance_variation_study_variable=None,
-        opt= {"identifier": "global_ccs", "param": None, "value": row['opt_ccs']},
+        #opt= {"identifier": "global_ccs", "param": None, "value": row['opt_ccs']},     # this is not working 
+        opt=None,
         comment=None
     ),
     axis=1
 ).tolist()
+
+# create SMF object
 
 SMF = SMF_df_wi.apply(
     lambda row: SmallMoleculeFeature(
@@ -399,26 +405,39 @@ SMF = SMF_df_wi.apply(
         retention_time_in_seconds_start=None,
         retention_time_in_seconds_end=None,
         abundance_assay=[row[col] for col in abundance_cols],                 # how can i put every abundance assay column here? 
-        opt= {"identifier": "global_ccs", "param": None, "value": row['opt_ccs']},
+        #opt= {"identifier": "global_ccs", "param": None, "value": row['opt_ccs']},    # this is not working 
+        opt=None,
         comment=None
     ),
     axis=1
 ).tolist()
 
+# create SME object
 
 SME = [
     SmallMoleculeEvidence(
-        prefix='SME', header_prefix='SEH', 
+        prefix='SME', 
+        header_prefix='SEH', 
         sme_id="notNone", 
         evidence_input_id="notNone", 
         database_identifier="notNone", 
-        chemical_formula="null", smiles=None, inchi=None, chemical_name=None, 
-        uri=None, derivatized_form=None, adduct_ion=None, 
-        exp_mass_to_charge="notNone", charge="notNone", 
-        theoretical_mass_to_charge="notNone", spectra_ref="notNone", 
-        identification_method="notNone", ms_level="notNone", 
-        id_confidence_measure=None, rank=1, 
-        opt=None, comment=None
+        chemical_formula="null", 
+        smiles=None, 
+        inchi=None, 
+        chemical_name=None, 
+        uri=None, 
+        derivatized_form=None, 
+        adduct_ion=None, 
+        exp_mass_to_charge="notNone", 
+        charge="notNone", 
+        theoretical_mass_to_charge="notNone", 
+        spectra_ref="notNone", 
+        identification_method="notNone", 
+        ms_level="notNone", 
+        id_confidence_measure=None, 
+        rank=1, 
+        opt=None, 
+        comment=None
     )    
 ]
 
