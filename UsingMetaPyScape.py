@@ -10,6 +10,7 @@ from mztab_m_io.mztab_m_writer import writeMzTabM
 import metaPyScape
 from metaPyScape.rest import ApiException
 import yaml
+import re
 import pandas as pd
 
 # pymzTab-m
@@ -26,6 +27,20 @@ from mztab_m_swagger_client.models import Parameter
 from mztab_m_io import *
 
 import pprint
+
+def patch_json_file(file_path: str, target_path=None):
+    with open(file_path) as f:
+        file_content = f.read()
+        # PATCH the file content
+        error_1_pattern = r"'([^']+)'"
+        updated = re.sub(error_1_pattern, r'"\1"', file_content)
+        error_2_pattern = r":\s*None"
+        updated = re.sub(error_2_pattern, ": null", updated)
+    if not target_path:
+        target_path = file_path
+    with open(target_path, "w") as f:
+        f.write(updated)
+
 
 # Defining the host is optional and defaults to http://localhost
 # See configuration.py for a list of all supported configuration parameters.
@@ -169,7 +184,7 @@ for idx, (sid, sname) in enumerate(zip(sample_Ids, sample_names), start=1):
         "format": None,
         "id_format": None,
         "fragmentation_method": None,
-        "scan_polarity":  f"{getattr(featuretable_info, 'polarity', None)} scan" if getattr(featuretable_info, 'polarity', None) else None,
+        "scan_polarity":  f"{getattr(featuretable_info, 'polarity', None).lower()} scan" if getattr(featuretable_info, 'polarity', None) else None,
         "hash": None,
         "hash_method": None
     }
@@ -453,8 +468,9 @@ mztab = MzTab(metadata=MTD,
 # write the mztab JSON to file /tmp/mztab.json
 with open("example_SMF.json", "w") as f:
   print(mztab, file=f)
-  
 try:
     writeMzTabM("example_SMF.json", mztab)
+    patch_json_file("example_SMF.json")
+ 
 except Exception as e:
     print("Error writing MzTab-M file: %s\n" % e)
