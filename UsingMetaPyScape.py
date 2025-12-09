@@ -6,7 +6,6 @@ UsingMetaPyScape
 
 from __future__ import print_function
 
-from mztab_m_io.mztab_m_writer import writeMzTabM
 import metaPyScape
 from metaPyScape.rest import ApiException
 import yaml
@@ -14,19 +13,33 @@ import re
 import pandas as pd
 
 # pymzTab-m
-from mztab_m_swagger_client import ApiClient, Configuration, ValidateApi
-from mztab_m_swagger_client.rest import ApiException
-from mztab_m_swagger_client.models import MzTab
-from mztab_m_swagger_client.models import Metadata
-from mztab_m_swagger_client.models import SmallMoleculeSummary
-from mztab_m_swagger_client.models import SmallMoleculeFeature
-from mztab_m_swagger_client.models import SmallMoleculeEvidence
-from mztab_m_swagger_client.models import Parameter
 
-
-from mztab_m_io import *
+from mztabm.model.common import (
+    CV,
+    Assay,
+    ColumnParameterMapping,
+    Contact,
+    Database,
+    Instrument,
+    MsRun,
+    Parameter,
+    Publication,
+    Sample,
+    SampleProcessing,
+    Software,
+    StudyVariable,
+    Uri,
+)
+from mztabm.model.mztabm import MzTabM
+from mztabm.model.section.mtd import Metadata
+from mztabm.model.section.sme import SmallMoleculeEvidence
+from mztabm.model.section.smf import SmallMoleculeFeature
+from mztabm.model.section.sml import SmallMoleculeSummary
+import mztabm
 
 import pprint
+
+#minimal = MzTabM( metadata={"mzTab-version": "2.0.0-M"})
 
 def patch_json_file(file_path: str, target_path=None):
     with open(file_path) as f:
@@ -342,34 +355,39 @@ SML_df_wi = pd.concat([SML_df, intensities_df], axis=1)
 
 # create Metadata object
 
+
 MTD = Metadata(
-    prefix='MTD', 
-    mz_tab_version="2.0.0-M", 
-    mz_tab_id=featuretable_info.id,
+    mztab_version="2.0.0-M", 
+    mztab_id=featuretable_info.id,
     title=featuretable_info.name, 
     description=projectInfo.description,                            # das passt nicht bzw kommt aus der project_info und ist nciht spezifisch für die featuretable 
-    sample_processing=featuretable_info.processing_workflow, 
-    instrument=None, software="MetaboScape", 
-    publication=None, 
-    contact=projectInfo.owner, 
-    uri=None, external_study_uri=None, 
-    quantification_method="label-free",                             # woher soll die kommen? 
-    study_variable="undefined",                                     
-    ms_run=ms_run_entries, 
-    assay=assay_entries,                                            # "ms_run_ref": ms_run_pre}, how do i implement ms_run_ref the right way? 
-    sample=None, 
-    custom=None, 
-    cv="notNone", 
+    cv=[ CV(label="MS", 
+          full_name="Mass Spectrometry Ontology", 
+          version="4.1.38", 
+          uri="https://raw.githubusercontent.com/HUPO-PSI/psi-ms-CV/master/psi-ms.obo")], 
     database="inhouse?", 
-    derivatization_agent=None, 
-    small_molecule_quantification_unit="notNone", 
-    small_molecule_feature_quantification_unit="notNone", 
-    small_molecule_identification_reliability=None, 
-    id_confidence_measure=aq_scores,                                # list of the aq scores? 
-    colunit_small_molecule=None, 
-    colunit_small_molecule_feature=None, 
-    colunit_small_molecule_evidence=None
+    id_confidence_measure="dummy" # aq_scores,                                # list of the aq scores? 
 )
+
+#     sample_processing=featuretable_info.processing_workflow, 
+#     instrument=None, software="MetaboScape", 
+#     publication=None, 
+#     #contact=[Contact(name=projectInfo.owner)],
+#     uri=None, external_study_uri=None, 
+#     quantification_method="label-free",                             # woher soll die kommen? 
+#     study_variable="undefined",                                     
+#     ms_run=ms_run_entries, 
+#     assay=assay_entries,                                            # "ms_run_ref": ms_run_pre}, how do i implement ms_run_ref the right way? 
+#     sample=None, 
+#     custom=None, 
+#     derivatization_agent=None, 
+#     small_molecule_quantification_unit="notNone", 
+#     small_molecule_feature_quantification_unit="notNone", 
+#     small_molecule_identification_reliability=None, 
+#     colunit_small_molecule=None, 
+#     colunit_small_molecule_feature=None, 
+#     colunit_small_molecule_evidence=None
+# )
 
 
 # create SML object
@@ -458,7 +476,7 @@ SME = [
 
 # create the MzTab object
 
-mztab = MzTab(metadata=MTD, 
+mztab = MzTabM(metadata=MTD, 
               small_molecule_summary=SML,
               small_molecule_feature=SMF,
               small_molecule_evidence=SME, 
@@ -469,7 +487,7 @@ mztab = MzTab(metadata=MTD,
 with open("example_SMF.json", "w") as f:
   print(mztab, file=f)
 try:
-    writeMzTabM("example_SMF.json", mztab)
+    mztabm.write(mztab, "example_SMF.yaml", format="yaml")
     patch_json_file("example_SMF.json")
  
 except Exception as e:
