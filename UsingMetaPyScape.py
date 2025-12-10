@@ -5,6 +5,8 @@ UsingMetaPyScape
 """
 
 from __future__ import print_function
+from pathlib import Path
+from typing import List
 
 import metaPyScape
 from metaPyScape.rest import ApiException
@@ -405,29 +407,39 @@ SMF_dict = {
 SMF_df = pd.DataFrame(data=SMF_dict)
 SMF_df_wi = pd.concat([SMF_df, intensities_df], axis=1)
 
+# build list of SML Metabolites
+SML: List[SmallMoleculeSummary]=[]
 
-SML_dict = {
-    "SMH": ["SML"] * 937,
-    "SML_ID": featureIds,
-    "database_identifier": database_identifiers,
-    "chemical_formula": chemical_formula,
-    "smiles": smiles,
-    "inchi": inchi,
-    "chemical_name": chemical_name,
-    "theoretical_neutral_mass": ["?"] * 937,
-    "adduct_ions": adduct_ion,
-    "reliability": ["?"] * 937,
-    "best_id_confidence_measure": ["?"] * 937,
-    "best_id_confidence_value": ["?"] * 937,
-    "abundance_study_variable": ["?"] * 937,
-    "abundance_variation_study_variable": ["?"] * 937,
-    "opt_ccs": ccs,
-    "comment": ["?"] * 937,
-}
+for idx, (featureId, single_chemical_formula, 
+          single_smiles, single_inchi, single_database_identifier,
+          single_chemical_name, single_adduct_ion, single_ccs, row) in enumerate(zip(featureIds, chemical_formula, smiles, inchi, chemical_name, 
+                 database_identifiers, adduct_ion, ccs,
+                 intensities_df.itertuples(index=False)), start=1):
+    single_SML = SmallMoleculeSummary(
+        SML_ID=idx,
+        database_identifier=[single_database_identifier],
+        chemical_formula=[single_chemical_formula],
+        smiles=["CCO"],#[single_smiles],
+        inchi=["InChI=1S/H2O/h1H2"],
+        chemical_name=["dummy"],
+        theoretical_neutral_mass=[666.6],
+        adduct_ions=[single_adduct_ion],
+        reliability="?",
+        best_id_confidence_measure=Parameter(cv_label="MS",
+            cv_accession="MS:1002890",
+            name="fragmentation score"),
+        best_id_confidence_value=111.1,
+        abundance_study_variable=[222.2],
+        abundance_variation_study_variable=[333.3],
+        opt_ccs=single_ccs,
+        abundance_assay=list(row)
+        #comment=Comment()
+    )
 
-SML_df = pd.DataFrame(data=SML_dict)
-SML_df_wi = pd.concat([SML_df, intensities_df], axis=1)
+    SML.append(single_SML)
 
+
+pprint.pprint(SML[:5]) 
 
 ## create mzTab-M sections one by one
 ## pymzTab-m
@@ -457,7 +469,7 @@ MTD = Metadata(
             label="MS",
             full_name="Mass Spectrometry Ontology",
             version="4.1.38",
-            uri="https://raw.githubusercontent.com/HUPO-PSI/psi-ms-CV/master/psi-ms.obo",
+            uri="https://raw.githubusercontent.com/HUPO-PSI/psi-ms-CV/master/psi-ms.obo"
         )
     ],
     small_molecule_quantification_unit=Parameter(
@@ -495,106 +507,103 @@ abundance_cols = [
     f"abundance_assay[{i}]" for i in range(1, 19)
 ]  # define abundance assay columns dynamically according to number of samples
 
-SML = SML_df_wi.apply(
-    lambda row: SmallMoleculeSummary(
-        prefix="SML",
-        header_prefix="SMH",
-        sml_id=row["SML_ID"],
-        smf_id_refs=None,
-        database_identifier=row["database_identifier"],
-        chemical_formula=row["chemical_formula"],
-        smiles=row["smiles"],
-        inchi=row["inchi"],
-        chemical_name=row["chemical_name"],
-        uri=None,
-        theoretical_neutral_mass=None,
-        adduct_ions=row["adduct_ions"],
-        reliability=None,
-        best_id_confidence_measure=None,
-        best_id_confidence_value=None,
-        abundance_assay=[
-            row[col] for col in abundance_cols
-        ],  # make a list of values from all samples for each row, each row represents one feature
-        abundance_study_variable=None,
-        abundance_variation_study_variable=None,
-        # opt= {"identifier": "global_ccs", "param": None, "value": row['opt_ccs']},     # this is not working
-        opt=None,
-        comment=None,
-    ),
-    axis=1,
-).tolist()
+# SML = SML_df_wi.apply(
+#     lambda row: SmallMoleculeSummary(
+#         prefix="SML",
+#         header_prefix="SMH",
+#         sml_id=row.SML_ID,
+#         smf_id_refs=None,
+#         database_identifier=row["database_identifier"],
+#         chemical_formula=row["chemical_formula"],
+#         smiles=row["smiles"],
+#         inchi=row["inchi"],
+#         chemical_name=row["chemical_name"],
+#         uri=None,
+#         theoretical_neutral_mass=None,
+#         adduct_ions=row["adduct_ions"],
+#         reliability=None,
+#         best_id_confidence_measure=None,
+#         best_id_confidence_value=None,
+#         abundance_assay=[
+#             row[col] for col in abundance_cols
+#         ],  # make a list of values from all samples for each row, each row represents one feature
+#         abundance_study_variable=None,
+#         abundance_variation_study_variable=None,
+#         # opt= {"identifier": "global_ccs", "param": None, "value": row['opt_ccs']},     # this is not working
+#         opt=None,
+#         comment=None,
+#     ),
+#     axis=1,
+# ).tolist()
 
 # create SMF object
 
-SMF = SMF_df_wi.apply(
-    lambda row: SmallMoleculeFeature(
-        prefix="SMF",
-        header_prefix="SFH",
-        smf_id=row["SMF_ID"],
-        sme_id_refs=None,
-        sme_id_ref_ambiguity_code=None,
-        adduct_ion=None,  # actual test line, before: None              adduct_ion=row['adduct_ion'],
-        isotopomer=row["isotopomer"],
-        exp_mass_to_charge=row["exp_mass_to_charge"],
-        charge=row["charge"],
-        retention_time_in_seconds=row["retention_time_in_seconds"],
-        retention_time_in_seconds_start=None,
-        retention_time_in_seconds_end=None,
-        abundance_assay=[
-            row[col] for col in abundance_cols
-        ],  # how can i put every abundance assay column here?
-        # opt= {"identifier": "global_ccs", "param": None, "value": row['opt_ccs']},    # this is not working
-        opt=None,
-        comment=None,
-    ),
-    axis=1,
-).tolist()
+# SMF = SMF_df_wi.apply(
+#     lambda row: SmallMoleculeFeature(
+#         prefix="SMF",
+#         header_prefix="SFH",
+#         smf_id=row["SMF_ID"],
+#         sme_id_refs=None,
+#         sme_id_ref_ambiguity_code=None,
+#         adduct_ion=None,  # actual test line, before: None              adduct_ion=row['adduct_ion'],
+#         isotopomer=row["isotopomer"],
+#         exp_mass_to_charge=row["exp_mass_to_charge"],
+#         charge=row["charge"],
+#         retention_time_in_seconds=row["retention_time_in_seconds"],
+#         retention_time_in_seconds_start=None,
+#         retention_time_in_seconds_end=None,
+#         abundance_assay=[
+#             row[col] for col in abundance_cols
+#         ],  # how can i put every abundance assay column here?
+#         # opt= {"identifier": "global_ccs", "param": None, "value": row['opt_ccs']},    # this is not working
+#         opt=None,
+#         comment=None,
+#     ),
+#     axis=1,
+# ).tolist()
 
-# create SME object
+# # create SME object
 
-SME = [
-    SmallMoleculeEvidence(
-        prefix="SME",
-        header_prefix="SEH",
-        sme_id="notNone",
-        evidence_input_id="notNone",
-        database_identifier="notNone",
-        chemical_formula="null",
-        smiles=None,
-        inchi=None,
-        chemical_name=None,
-        uri=None,
-        derivatized_form=None,
-        adduct_ion=None,
-        exp_mass_to_charge="notNone",
-        charge="notNone",
-        theoretical_mass_to_charge="notNone",
-        spectra_ref="notNone",
-        identification_method="notNone",
-        ms_level="notNone",
-        id_confidence_measure=None,
-        rank=1,
-        opt=None,
-        comment=None,
-    )
-]
+# SME = [
+#     SmallMoleculeEvidence(
+#         prefix="SME",
+#         header_prefix="SEH",
+#         sme_id="notNone",
+#         evidence_input_id="notNone",
+#         database_identifier="notNone",
+#         chemical_formula="null",
+#         smiles=None,
+#         inchi=None,
+#         chemical_name=None,
+#         uri=None,
+#         derivatized_form=None,
+#         adduct_ion=None,
+#         exp_mass_to_charge="notNone",
+#         charge="notNone",
+#         theoretical_mass_to_charge="notNone",
+#         spectra_ref="notNone",
+#         identification_method="notNone",
+#         ms_level="notNone",
+#         id_confidence_measure=None,
+#         rank=1,
+#         opt=None,
+#         comment=None,
+#     )
+# ]
 
-# create the MzTab object
+# # create the MzTab object
 
 mztab = MzTabM(
     metadata=MTD,
-    small_molecule_summary=SML,
-    small_molecule_feature=SMF,
-    small_molecule_evidence=SME,
+    small_molecule_summary=SML
 )
+#    small_molecule_feature=SMF,
+#    small_molecule_evidence=SME,
 
 
 # write the mztab JSON to file /tmp/mztab.json
-with open("example_SMF.json", "w") as f:
-    print(mztab, file=f)
+target_path = Path("/tmp/example.mztab")
 try:
-    mztabm.write(mztab, "example_SMF.yaml", format="yaml")
-    patch_json_file("example_SMF.json")
-
+    mztabm.write(mztab, str(target_path), format="tsv")
 except Exception as e:
     print("Error writing MzTab-M file: %s\n" % e)
