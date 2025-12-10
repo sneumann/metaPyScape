@@ -431,16 +431,27 @@ SML_df_wi = pd.concat([SML_df, intensities_df], axis=1)
 
 ## create mzTab-M sections one by one
 ## pymzTab-m
-##
-
-# create Metadata object
-
 
 MTD = Metadata(
     mztab_version="2.0.0-M",
     mztab_id=featuretable_info.id,
     title=featuretable_info.name,
-    description=projectInfo.description,  # das passt nicht bzw kommt aus der project_info und ist nciht spezifisch für die featuretable
+    description=projectInfo.description,
+    quantification_method=Parameter(
+        cv_label="MS",
+        cv_accession="MS:1001834",
+        name="LC-MS label-free quantitation analysis",
+    ),
+    software=[Software(id=1, parameter=Parameter(name="inhouse"))],
+    ms_run=[MsRun(id=1, location="ftp://ftp.ebi.ac.uk/path/to/file")],
+    assay=[Assay(id=1, name="assay 1", ms_run_ref=[1])],
+    study_variable=[
+        StudyVariable(
+            name="study variable 1",
+            assay_refs=[1],
+            factors=[Parameter(cv_label="XX", cv_accession="XX:0012", name="factor 1")],
+        )
+    ],
     cv=[
         CV(
             label="MS",
@@ -449,29 +460,33 @@ MTD = Metadata(
             uri="https://raw.githubusercontent.com/HUPO-PSI/psi-ms-CV/master/psi-ms.obo",
         )
     ],
-    database="inhouse?",
-    id_confidence_measure="dummy",  # aq_scores,                                # list of the aq scores?
+    small_molecule_quantification_unit=Parameter(
+        cv_label="MS",
+        cv_accession="MS:1002887",
+        name="Progenesis QI normalised abundance",
+    ),
+    small_molecule_feature_quantification_unit=Parameter(
+        cv_label="MS",
+        cv_accession="MS:1002887",
+        name="Progenesis QI normalised abundance",
+    ),
+    small_molecule_identification_reliability=Parameter(
+        cv_label="MS",
+        cv_accession="MS:1002896",
+        name="compound identification confidence level",
+    ),
+    database=[
+        Database(
+            param=Parameter(name="hmdb"),
+            prefix="HMDB",
+            version="",
+            uri="http://www.hmdb.org",
+        )
+    ],
+    id_confidence_measure=[
+        Parameter(cv_label="MS", cv_accession="MS:1002890", name="fragmentation score")
+    ],
 )
-
-#     sample_processing=featuretable_info.processing_workflow,
-#     instrument=None, software="MetaboScape",
-#     publication=None,
-#     #contact=[Contact(name=projectInfo.owner)],
-#     uri=None, external_study_uri=None,
-#     quantification_method="label-free",                             # woher soll die kommen?
-#     study_variable="undefined",
-#     ms_run=ms_run_entries,
-#     assay=assay_entries,                                            # "ms_run_ref": ms_run_pre}, how do i implement ms_run_ref the right way?
-#     sample=None,
-#     custom=None,
-#     derivatization_agent=None,
-#     small_molecule_quantification_unit="notNone",
-#     small_molecule_feature_quantification_unit="notNone",
-#     small_molecule_identification_reliability=None,
-#     colunit_small_molecule=None,
-#     colunit_small_molecule_feature=None,
-#     colunit_small_molecule_evidence=None
-# )
 
 
 # create SML object
