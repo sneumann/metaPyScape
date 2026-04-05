@@ -24,9 +24,8 @@ See `config.yml-example`, which you need to copy to `config.yml` and adapt to yo
 
 ## mtbsccli – Command-Line Client
 
-`mtbsccli` is a read-only command-line client for MetaboScape, inspired by the
-`kubectl` / `docker` command style.  It is installed as part of the package and
-exposes all GET endpoints of the MetaboScape REST API.
+`mtbsccli` is a read-only command-line client for MetaboScape.  It is installed
+as part of the package and exposes all GET endpoints of the MetaboScape REST API.
 
 ### Installation
 

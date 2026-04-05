@@ -1,8 +1,8 @@
 # coding: utf-8
 """mtbsccli - MetaboScape command-line client.
 
-Usage examples (kubectl / docker style)
-----------------------------------------
+Usage examples
+--------------
   # Configuration
   mtbsccli config set-server http://192.168.1.10/cxf/metaboscape
   mtbsccli config set-key          # prompts securely; never echoes key
