@@ -32,6 +32,8 @@ Global flags
 
 from __future__ import annotations
 
+import getpass
+import os
 import sys
 from typing import Optional
 
@@ -155,8 +157,6 @@ def config_set_server(url: str) -> None:
 @config_group.command("set-key")
 def config_set_key() -> None:
     """Securely store the API key in the config file (owner-read-only, 600)."""
-    import getpass
-
     try:
         key = getpass.getpass("MetaboScape API Key: ")
     except (KeyboardInterrupt, EOFError):
@@ -190,8 +190,6 @@ def config_show() -> None:
     click.echo(f"  exists    : {cfg.CONFIG_FILE.exists()}")
     for k, v in masked.items():
         click.echo(f"  {k}: {v}")
-
-    import os
 
     env_key = os.environ.get(cfg.API_KEY_ENV, "")
     if env_key:

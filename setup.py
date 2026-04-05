@@ -23,7 +23,7 @@ VERSION = "1.0.0"
 
 REQUIRES = ["urllib3 >= 1.15", "six >= 1.10", "certifi", "python-dateutil"]
 
-CLI_REQUIRES = ["click >= 8.0", "pyyaml >= 6.0"]
+CLI_REQUIRES = ["click >= 8.0"]
 
 setup(
     name=NAME,
