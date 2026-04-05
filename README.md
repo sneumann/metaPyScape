@@ -22,6 +22,102 @@ See `config.yml-example`, which you need to copy to `config.yml` and adapt to yo
  Since this is essentially your plain-text password, you need to protect that file against misuse. 
  NEVER commit the real `config.yml` to git. 
 
+## mtbsccli – Command-Line Client
+
+`mtbsccli` is a read-only command-line client for MetaboScape.  It is installed
+as part of the package and exposes all GET endpoints of the MetaboScape REST API.
+
+### Installation
+
+Install the package with the `cli` extras to pull in the `click` dependency:
+
+```sh
+pip install "git+https://github.com/sneumann/metaPyScape.git#egg=metaPyScape[cli]"
+```
+
+### Credential Handling
+
+The API key is **never** passed as a command-line argument to avoid exposure in
+shell history and process listings.  Credentials are resolved in this order:
+
+1. **Environment variable** `MTBSC_API_KEY` *(recommended for CI/CD)*
+2. **Config file** `~/.config/mtbsccli/config.yml` with permissions `600`
+   (owner read/write only) – written by `mtbsccli config set-key`
+3. **Interactive prompt** (hidden input via `getpass`) when no other source is found
+
+The server URL follows the same pattern via `MTBSC_SERVER` env var or the config file.
+
+### Configuration
+
+```sh
+# Save the server URL
+mtbsccli config set-server http://192.168.1.10/cxf/metaboscape
+
+# Securely save the API key (will prompt, input is not echoed)
+mtbsccli config set-key
+
+# Show current config (key is masked)
+mtbsccli config show
+
+# Or export at runtime (never persisted to disk)
+export MTBSC_API_KEY=your-api-key
+export MTBSC_SERVER=http://192.168.1.10/cxf/metaboscape
+```
+
+### Commands
+
+```sh
+# --- Projects ---
+mtbsccli get projects                          # List all projects
+mtbsccli get project <projectId>               # Get project details
+mtbsccli get project-info <projectId>          # Get project task/workflow info
+
+# --- Feature Tables ---
+mtbsccli get featuretable <featureTableId>     # Get a feature table
+
+# --- Features ---
+mtbsccli get feature <featureId>               # Get a single feature
+mtbsccli get spectra <featureId>               # Get MS ion spectra
+mtbsccli get spectra-details <featureId>       # Get MS spectra details
+mtbsccli get msms <featureId>                  # Get MS/MS spectra
+mtbsccli get msms-deiso <featureId>            # Get deisotoped MS/MS spectra
+mtbsccli get eics <featureId>                  # Get Extracted Ion Chromatograms
+mtbsccli get eims <featureId>                  # Get Extracted Ion Mobilograms
+
+# --- Samples ---
+mtbsccli get samples <featureTableId>          # List samples for a feature table
+
+# --- Intensity Matrix ---
+mtbsccli get intensity-matrix <featureTableId> # Get intensity matrix
+
+# --- CCS Prediction ---
+mtbsccli get ccs-models                        # List CCS prediction models
+
+# --- Annotations ---
+mtbsccli get annotation-config <configId>      # Get annotation configuration
+mtbsccli get annotation-methods <toolId>       # List annotation methods for a tool
+```
+
+### Global Flags
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--server URL` | `-s` | Override server URL |
+| `--output FORMAT` | `-o` | Output format: `table` (default), `json`, `yaml` |
+
+### Examples
+
+```sh
+# List all projects as JSON
+mtbsccli -o json get projects
+
+# Get a feature table as YAML, connecting to a specific server
+mtbsccli -s http://ms-server/cxf/metaboscape -o yaml get featuretable abc-123
+
+# Run as a Python module
+python -m mtbsccli get projects
+```
+
 ## Converting mzTab-M JSON to tabular / classic mzTab-M
 
 Currently, the python `mztab_m_io.mztab_m_writer()` only outputs the JSON representation of m
