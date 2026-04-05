@@ -356,21 +356,30 @@ smiles_list = []
 smiles = get_nested_data(
     api_response_ft, smiles_list, "primary_annotation", "structure_smiles"
 )
+## Replace None values with "NULL" string for mzTab-M compatibility
+smiles = [s if s else "NULL" for s in smiles]
 
 inchi_list = []
 inchi = get_nested_data(
     api_response_ft, inchi_list, "primary_annotation", "structure_inchi"
 )
+inchi = [i if i else "NULL" for i in inchi]
 
 database_identifiers_list = []
 database_identifiers = get_nested_data(
     api_response_ft,
     database_identifiers_list,
     "primary_annotation",
-    "database_identifiers",
+    "database_identifiers"
 )
+# database_identifiers is a list of dictionaries. Make a list of values from identifier key, or "NULL" if None
+database_identifiers = [
+    db_ids.get("identifier", "NULL")
+    if isinstance(db_ids, dict)
+    else "NULL"
+    for db_ids in database_identifiers
+]
 
-# make a list of the mz values
 
 exp_mass_to_charge_list = []
 for feature in api_response_ft:
@@ -412,15 +421,16 @@ SML: List[SmallMoleculeSummary]=[]
 
 for idx, (featureId, single_chemical_formula, 
           single_smiles, single_inchi, single_database_identifier,
-          single_chemical_name, single_adduct_ion, single_ccs, row) in enumerate(zip(featureIds, chemical_formula, smiles, inchi, chemical_name, 
-                 database_identifiers, adduct_ion, ccs,
-                 intensities_df.itertuples(index=False)), start=1):
+          single_chemical_name, single_adduct_ion, single_ccs, row) in enumerate(zip(
+              featureIds, chemical_formula, smiles, inchi, database_identifiers, 
+              chemical_name, adduct_ion, ccs,
+              intensities_df.itertuples(index=False)), start=1):
     single_SML = SmallMoleculeSummary(
         SML_ID=idx,
         database_identifier=[single_database_identifier],
         chemical_formula=[single_chemical_formula],
-        smiles=["CCO"],#[single_smiles],
-        inchi=["InChI=1S/H2O/h1H2"],
+        smiles=[single_smiles],
+        inchi=[single_inchi],
         chemical_name=["dummy"],
         theoretical_neutral_mass=[666.6],
         adduct_ions=[single_adduct_ion],
@@ -439,7 +449,7 @@ for idx, (featureId, single_chemical_formula,
     SML.append(single_SML)
 
 
-pprint.pprint(SML[:5]) 
+pprint.pprint(SML[40:45]) 
 
 ## create mzTab-M sections one by one
 ## pymzTab-m
