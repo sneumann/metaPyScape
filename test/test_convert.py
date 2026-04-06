@@ -284,7 +284,7 @@ class TestBuildMztabm(unittest.TestCase):
         with tempfile.NamedTemporaryFile(suffix=".mztab", delete=False) as fh:
             path = fh.name
         try:
-            ctx = mztabm.write(result, path, format="tsv")
+            _ = mztabm.write(result, path, format="tsv")
             self.assertTrue(os.path.exists(path))
         finally:
             os.unlink(path)
@@ -297,7 +297,7 @@ class TestBuildMztabm(unittest.TestCase):
         with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as fh:
             path = fh.name
         try:
-            ctx = mztabm.write(result, path, format="json")
+            _ = mztabm.write(result, path, format="json")
             self.assertTrue(os.path.exists(path))
         finally:
             os.unlink(path)

@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import metaPyScape
 from mztab_m_io.model.common import (
@@ -87,7 +87,7 @@ def build_mztabm(
     analysis_ids: List[str] = intensity_matrix.analysis_ids or []
 
     # Build analysis-id → display name lookup from sample metadata.
-    analysis_name: dict[str, str] = {}
+    analysis_name: Dict[str, str] = {}
     for sample in (samples or []):
         for analysis in (sample.analysis or []):
             if analysis.id:
@@ -179,7 +179,7 @@ def build_mztabm(
     # Build feature-id → intensity-row-index lookup.
     matrix_feature_ids: List[str] = intensity_matrix.feature_ids or []
     intensities = intensity_matrix.intensities or []
-    feature_id_to_row: dict[str, int] = {
+    feature_id_to_row: Dict[str, int] = {
         fid: idx for idx, fid in enumerate(matrix_feature_ids)
     }
 

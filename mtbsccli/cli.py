@@ -50,7 +50,6 @@ from metaPyScape.rest import ApiException
 
 from . import config as cfg
 from . import output as out
-from .convert import build_mztabm as _build_mztabm
 
 
 # ---------------------------------------------------------------------------
@@ -450,6 +449,7 @@ def convert2mztabm(
     ``-o tsv`` / ``-o table`` (default) for TSV mzTab-M output.
     """
     import mztab_m_io as mztabm
+    from .convert import build_mztabm as _build_mztabm
 
     fmt = ctx.obj["output"]
     mztabm_format = "json" if fmt == "json" else "tsv"
