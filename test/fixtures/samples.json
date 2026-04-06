@@ -1,0 +1,21 @@
+[
+  {
+    "id": "samp-0001-0000-0000-000000000001",
+    "name": "Sample A",
+    "type": "experimental",
+    "volume": null,
+    "attributes": [],
+    "analysis": [
+      {
+        "id": "anal-0001-0000-0000-000000000001",
+        "name": "Run_001",
+        "include": true
+      },
+      {
+        "id": "anal-0002-0000-0000-000000000002",
+        "name": "Run_002",
+        "include": true
+      }
+    ]
+  }
+]

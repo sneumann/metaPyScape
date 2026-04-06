@@ -1,0 +1,18 @@
+[
+  {
+    "id": "proj-0001-0000-0000-000000000001",
+    "name": "Example Project",
+    "experiments": [
+      {
+        "id": "exp-0001-0000-0000-000000000001",
+        "name": "Experiment 1",
+        "feature_tables": [
+          {
+            "id": "ft-0001-0000-0000-000000000001",
+            "name": "FeatureTable 1"
+          }
+        ]
+      }
+    ]
+  }
+]

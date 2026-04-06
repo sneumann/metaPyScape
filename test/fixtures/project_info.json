@@ -1,0 +1,9 @@
+{
+  "projectId": "proj-0001-0000-0000-000000000001",
+  "name": "Example Project",
+  "description": "A minimal example project for unit testing.",
+  "owner": "testuser",
+  "experiments": [],
+  "creationDate": 1700000000000,
+  "attribute": []
+}

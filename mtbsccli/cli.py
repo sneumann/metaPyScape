@@ -24,10 +24,16 @@ Usage examples
   mtbsccli get annotation-config <configId>
   mtbsccli get annotation-methods <toolId>
 
+  # mzTab-M conversion
+  mtbsccli convert2mztabm <projectId> <featuretableId> -f output.mztab
+  mtbsccli -o json convert2mztabm <projectId> <featuretableId> -f output.json
+  mtbsccli -o tsv  convert2mztabm <projectId> <featuretableId> -f output.mztab
+
 Global flags
 -------------
   --server / -s    Override server URL (or set env MTBSC_SERVER)
-  --output / -o    Output format: table (default), json, yaml
+  --output / -o    Output format: table (default), json, yaml, tsv
+                   For convert2mztabm: json writes JSON mzTab-M; tsv/table write TSV.
 """
 
 from __future__ import annotations
@@ -44,6 +50,7 @@ from metaPyScape.rest import ApiException
 
 from . import config as cfg
 from . import output as out
+from .convert import build_mztabm as _build_mztabm
 
 
 # ---------------------------------------------------------------------------
@@ -120,10 +127,10 @@ def _call(fn, *args, **kwargs):
 @click.option(
     "--output",
     "-o",
-    type=click.Choice(["table", "json", "yaml"]),
+    type=click.Choice(["table", "json", "yaml", "tsv"]),
     default="table",
     show_default=True,
-    help="Output format.",
+    help="Output format. For convert2mztabm: json writes JSON mzTab-M; tsv/table write TSV.",
 )
 @click.version_option(package_name="metaPyScape", prog_name="mtbsccli")
 @click.pass_context
@@ -411,6 +418,69 @@ def get_annotation_methods(ctx: click.Context, tool_id: str) -> None:
         tool_id,
     )
     out.format_output(result, ctx.obj["output"])
+
+
+# ---------------------------------------------------------------------------
+# convert2mztabm command
+# ---------------------------------------------------------------------------
+
+
+@cli.command("convert2mztabm")
+@click.argument("project_id")
+@click.argument("featuretable_id")
+@click.option(
+    "--out-file",
+    "-f",
+    required=True,
+    type=click.Path(dir_okay=False, writable=True),
+    help="Path to write the mzTab-M file (.mztab for TSV, .json for JSON).",
+)
+@click.pass_context
+def convert2mztabm(
+    ctx: click.Context,
+    project_id: str,
+    featuretable_id: str,
+    out_file: str,
+) -> None:
+    """Convert a MetaboScape feature table to mzTab-M format.
+
+    PROJECT_ID is the UUID of the project and FEATURETABLE_ID is the UUID of
+    the feature table to convert.  The output format is controlled by the
+    global -o / --output flag: use ``-o json`` for JSON mzTab-M output or
+    ``-o tsv`` / ``-o table`` (default) for TSV mzTab-M output.
+    """
+    import mztab_m_io as mztabm
+
+    fmt = ctx.obj["output"]
+    mztabm_format = "json" if fmt == "json" else "tsv"
+
+    client = _make_client(ctx.obj["server"])
+    project_api = metaPyScape.ProjectsApi(client)
+    featuretable_api = metaPyScape.FeaturetableApi(client)
+    samples_api = metaPyScape.SamplesApi(client)
+
+    project = _call(project_api.retrieve_project, project_id)
+    project_info = _call(project_api.retrieve_project_info, project_id)
+    feature_table = _call(featuretable_api.retrieve_feature_table, featuretable_id)
+    samples = _call(samples_api.list_all_samples, featuretable_id)
+    intensity_matrix = _call(
+        featuretable_api.retrieve_intensity_matrix, featuretable_id
+    )
+
+    mztab_obj = _build_mztabm(
+        project=project,
+        project_info=project_info,
+        feature_table=feature_table,
+        samples=samples,
+        intensity_matrix=intensity_matrix,
+        featuretable_id=featuretable_id,
+    )
+
+    result = mztabm.write(mztab_obj, out_file, format=mztabm_format)
+    if not result.success:
+        for msg in (result.messages or []):
+            click.echo(f"Warning: {msg}", err=True)
+    click.echo(f"Wrote mzTab-M ({mztabm_format}) to {out_file}", err=True)
 
 
 # ---------------------------------------------------------------------------

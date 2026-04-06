@@ -1,0 +1,48 @@
+[
+  {
+    "id": "feat-0001-0000-0000-000000000001",
+    "rt_in_seconds": 120.5,
+    "mass": 180.0634,
+    "feature_ions": [
+      {
+        "id": "ion-0001-0000-0000-000000000001",
+        "ionNotation": "[M+H]+",
+        "mz": 181.0712,
+        "ccs": 140.2,
+        "mainIon": true
+      }
+    ],
+    "primary_annotation": {
+      "id": "ann-0001-0000-0000-000000000001",
+      "name": "Glucose",
+      "formula": "C6H12O6",
+      "structure_smiles": "OC[C@H]1OC(O)[C@H](O)[C@@H](O)[C@@H]1O",
+      "structure_inchi": "InChI=1S/C6H12O6/c7-1-2-3(8)4(9)5(10)6(11)12-2/h2-11H,1H2",
+      "database_identifiers": [
+        {"identifier": "HMDB:HMDB0000122", "database": "HMDB"}
+      ],
+      "aq_scores": null,
+      "tool": "MetaboScape",
+      "annotated_ms_ms_fragment_details": []
+    },
+    "all_annotations": [],
+    "user_flags": []
+  },
+  {
+    "id": "feat-0002-0000-0000-000000000002",
+    "rt_in_seconds": 85.3,
+    "mass": 146.0579,
+    "feature_ions": [
+      {
+        "id": "ion-0002-0000-0000-000000000002",
+        "ionNotation": "[M+H]+",
+        "mz": 147.0657,
+        "ccs": null,
+        "mainIon": true
+      }
+    ],
+    "primary_annotation": null,
+    "all_annotations": [],
+    "user_flags": []
+  }
+]
