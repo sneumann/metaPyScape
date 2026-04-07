@@ -449,7 +449,7 @@ def convert2mztabm(
     ``-o tsv`` / ``-o table`` (default) for TSV mzTab-M output.
     """
     import mztab_m_io as mztabm
-    from .convert import build_mztabm as _build_mztabm
+    from .convert import _METABOSCAPE_VERSION, build_mztabm as _build_mztabm
 
     fmt = ctx.obj["output"]
     mztabm_format = "json" if fmt == "json" else "tsv"
@@ -467,6 +467,16 @@ def convert2mztabm(
         featuretable_api.retrieve_intensity_matrix, featuretable_id
     )
 
+    # Look up polarity and software version from the project's feature tables.
+    polarity = None
+    for exp in getattr(project, "experiments", None) or []:
+        for ft in getattr(exp, "feature_tables", None) or []:
+            if getattr(ft, "id", None) == featuretable_id:
+                polarity = getattr(ft, "polarity", None)
+                break
+        if polarity is not None:
+            break
+
     mztab_obj = _build_mztabm(
         project=project,
         project_info=project_info,
@@ -474,6 +484,8 @@ def convert2mztabm(
         samples=samples,
         intensity_matrix=intensity_matrix,
         featuretable_id=featuretable_id,
+        polarity=polarity,
+        software_version=_METABOSCAPE_VERSION,
     )
 
     result = mztabm.write(mztab_obj, out_file, format=mztabm_format)

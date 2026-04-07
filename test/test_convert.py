@@ -189,6 +189,80 @@ class TestBuildMztabm(unittest.TestCase):
         self.assertEqual(mtd.title, self.project.name)
         self.assertEqual(mtd.description, self.project_info.description)
 
+    def test_software_version_in_parameter(self):
+        """Software[1] parameter value must be the MetaboScape version string."""
+        from mtbsccli.convert import _METABOSCAPE_VERSION
+
+        result = self._build()
+        sw = result.metadata.software[0]
+        self.assertEqual(sw.parameter.value, _METABOSCAPE_VERSION)
+
+    def test_msrun_location_is_valid_uri(self):
+        """Every ms_run location must start with a valid scheme (file://)."""
+        result = self._build()
+        for ms_run in result.metadata.ms_run:
+            self.assertTrue(
+                ms_run.location.startswith("file:///"),
+                f"location {ms_run.location!r} is not a valid file URI",
+            )
+
+    def test_msrun_scan_polarity_set_when_polarity_provided(self):
+        """When polarity='POSITIVE', every ms_run must have a scan_polarity param."""
+        from mtbsccli.convert import build_mztabm
+
+        result = build_mztabm(
+            project=self.project,
+            project_info=self.project_info,
+            feature_table=self.feature_table,
+            samples=self.samples,
+            intensity_matrix=self.intensity_matrix,
+            featuretable_id=self.featuretable_id,
+            polarity="POSITIVE",
+        )
+        for ms_run in result.metadata.ms_run:
+            self.assertIsNotNone(ms_run.scan_polarity)
+            self.assertEqual(len(ms_run.scan_polarity), 1)
+            self.assertEqual(ms_run.scan_polarity[0].cv_accession, "MS:1000130")
+
+    def test_msrun_scan_polarity_negative(self):
+        """When polarity='NEGATIVE', every ms_run must have the negative scan CV term."""
+        from mtbsccli.convert import build_mztabm
+
+        result = build_mztabm(
+            project=self.project,
+            project_info=self.project_info,
+            feature_table=self.feature_table,
+            samples=self.samples,
+            intensity_matrix=self.intensity_matrix,
+            featuretable_id=self.featuretable_id,
+            polarity="NEGATIVE",
+        )
+        for ms_run in result.metadata.ms_run:
+            self.assertIsNotNone(ms_run.scan_polarity)
+            self.assertEqual(ms_run.scan_polarity[0].cv_accession, "MS:1000129")
+
+    def test_database_prefix_mtbsc(self):
+        """database[1]-prefix must be 'mtbsc'."""
+        result = self._build()
+        self.assertEqual(result.metadata.database[0].prefix, "mtbsc")
+
+    def test_database_uri_not_null(self):
+        """database[1]-uri must be a non-null, non-empty string."""
+        result = self._build()
+        uri = result.metadata.database[0].uri
+        self.assertIsNotNone(uri)
+        self.assertNotEqual(uri, "null")
+        self.assertTrue(uri.startswith("http"))
+
+    def test_database_software_version(self):
+        """database[1] version and param value must match the software version."""
+        from mtbsccli.convert import _METABOSCAPE_VERSION
+
+        result = self._build()
+        db = result.metadata.database[0]
+        self.assertEqual(db.version, _METABOSCAPE_VERSION)
+        self.assertEqual(db.param.value, _METABOSCAPE_VERSION)
+
     def test_metadata_assays_match_analyses(self):
         """One assay per analysis_id in the intensity matrix."""
         result = self._build()
@@ -226,6 +300,9 @@ class TestBuildMztabm(unittest.TestCase):
         # Kinetin in the fixture has no SMILES/InChI/database_identifiers
         self.assertIsNone(sml.smiles)
         self.assertIsNone(sml.inchi)
+        # No real db ID → dummy mtbsc placeholder assigned
+        self.assertIsNotNone(sml.database_identifier)
+        self.assertIn("mtbsc:unknown_43", sml.database_identifier)
 
     def test_sml_unannotated_feature_fields(self):
         """First feature has no primary annotation; chemical fields must be None."""
@@ -233,6 +310,51 @@ class TestBuildMztabm(unittest.TestCase):
         sml = result.small_molecule_summary[0]
         self.assertIsNone(sml.chemical_name)
         self.assertIsNone(sml.chemical_formula)
+
+    def test_sml_theoretical_neutral_mass_null_when_no_formula(self):
+        """theoretical_neutral_mass must be None when chemical_formula is None."""
+        result = self._build()
+        sml = result.small_molecule_summary[0]
+        # Unannotated feature: no formula, so mass must also be None.
+        self.assertIsNone(sml.chemical_formula)
+        self.assertIsNone(sml.theoretical_neutral_mass)
+
+    def test_sml_theoretical_neutral_mass_set_when_formula(self):
+        """theoretical_neutral_mass must be set when chemical_formula is provided."""
+        result = self._build()
+        sml = result.small_molecule_summary[42]
+        # Kinetin: formula is known, so mass must be non-None.
+        self.assertIsNotNone(sml.chemical_formula)
+        self.assertIsNotNone(sml.theoretical_neutral_mass)
+
+    def test_sml_db_id_real_when_available(self):
+        """When a real database_identifier is available it should be used as-is."""
+        rows = _load("featuretable.json")
+        # Find first feature with a non-null database_identifier.
+        real_id_idx = None
+        expected_id = None
+        for i, row in enumerate(rows):
+            ann = row.get("primary_annotation") or {}
+            ids = ann.get("database_identifiers") or []
+            if ids:
+                real_id_idx = i
+                expected_id = ids[0].get("identifier")
+                break
+        if real_id_idx is None:
+            self.skipTest("No feature with real database_identifier in fixture.")
+        result = self._build()
+        sml = result.small_molecule_summary[real_id_idx]
+        self.assertIn(expected_id, sml.database_identifier)
+
+    def test_sml_abundance_study_variable_columns(self):
+        """Each SML must have abundance_study_variable and abundance_variation columns."""
+        result = self._build()
+        n_sv = len(result.metadata.study_variable)
+        for sml in result.small_molecule_summary:
+            self.assertIsNotNone(sml.abundance_study_variable)
+            self.assertEqual(len(sml.abundance_study_variable), n_sv)
+            self.assertIsNotNone(sml.abundance_variation_study_variable)
+            self.assertEqual(len(sml.abundance_variation_study_variable), n_sv)
 
     def test_sml_abundance_assay_length(self):
         """Each SML row must have one abundance value per assay."""
