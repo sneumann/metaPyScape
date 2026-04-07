@@ -60,7 +60,7 @@ def _make_project_info():
 
     data = _load("project_info.json")
     info = metaPyScape.ProjectInfo()
-    info.project_id = data["projectId"]
+    info.project_id = data["project_id"]
     info.name = data["name"]
     info.description = data["description"]
     return info
@@ -88,10 +88,10 @@ def _make_feature_ion(ion_data: dict):
 
     ion = metaPyScape.FeatureIon()
     ion.id = ion_data.get("id")
-    ion.ion_notation = ion_data.get("ionNotation")
+    ion.ion_notation = ion_data.get("ion_notation")
     ion.mz = ion_data.get("mz")
     ion.ccs = ion_data.get("ccs")
-    ion.main_ion = ion_data.get("mainIon", False)
+    ion.main_ion = ion_data.get("main_ion", False)
     return ion
 
 
@@ -215,21 +215,22 @@ class TestBuildMztabm(unittest.TestCase):
         )
 
     def test_sml_annotated_feature_fields(self):
-        """First feature has a primary annotation; check chemical fields."""
+        """Feature at index 42 (Kinetin) has a primary annotation; check chemical fields."""
         result = self._build()
-        sml = result.small_molecule_summary[0]
-        self.assertEqual(sml.sml_id, 1)
+        sml = result.small_molecule_summary[42]
+        self.assertEqual(sml.sml_id, 43)
         self.assertIsNotNone(sml.chemical_name)
-        self.assertIn("Glucose", sml.chemical_name)
+        self.assertIn("Kinetin", sml.chemical_name)
         self.assertIsNotNone(sml.chemical_formula)
-        self.assertIn("C6H12O6", sml.chemical_formula)
-        self.assertIsNotNone(sml.database_identifier)
-        self.assertIn("HMDB:HMDB0000122", sml.database_identifier)
+        self.assertIn("C10H9N5O", sml.chemical_formula)
+        # Kinetin in the fixture has no SMILES/InChI/database_identifiers
+        self.assertIsNone(sml.smiles)
+        self.assertIsNone(sml.inchi)
 
     def test_sml_unannotated_feature_fields(self):
-        """Second feature has no primary annotation; chemical fields must be None."""
+        """First feature has no primary annotation; chemical fields must be None."""
         result = self._build()
-        sml = result.small_molecule_summary[1]
+        sml = result.small_molecule_summary[0]
         self.assertIsNone(sml.chemical_name)
         self.assertIsNone(sml.chemical_formula)
 
@@ -243,12 +244,12 @@ class TestBuildMztabm(unittest.TestCase):
     def test_smf_retention_time(self):
         result = self._build()
         smf = result.small_molecule_feature[0]
-        self.assertAlmostEqual(smf.retention_time_in_seconds, 120.5)
+        self.assertAlmostEqual(smf.retention_time_in_seconds, 31.070858001708984, places=3)
 
     def test_smf_mz(self):
         result = self._build()
         smf = result.small_molecule_feature[0]
-        self.assertAlmostEqual(smf.exp_mass_to_charge, 181.0712)
+        self.assertAlmostEqual(smf.exp_mass_to_charge, 104.10685559415053, places=3)
 
     def test_no_feature_ions(self):
         """Feature with empty feature_ions list must not raise."""
