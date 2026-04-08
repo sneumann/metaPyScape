@@ -84,6 +84,7 @@ def build_mztabm(
     featuretable_id: str,
     polarity: Optional[str] = None,
     software_version: str = _METABOSCAPE_VERSION,
+    converter_version: Optional[str] = None,
 ) -> MzTabM:
     """Build an :class:`MzTabM` object from MetaboScape API responses.
 
@@ -108,6 +109,10 @@ def build_mztabm(
     software_version:
         Version string of the MetaboScape software, defaults to the value
         from the OpenAPI specification (``_METABOSCAPE_VERSION``).
+    converter_version:
+        Version string of the mtbsccli converter.  When provided, a second
+        ``Software`` entry (``software[2]``) is added to the mzTab-M metadata
+        to record the tool that performed the conversion.
 
     Returns
     -------
@@ -163,6 +168,31 @@ def build_mztabm(
         or title
     )
 
+    # Build the software list: MetaboScape as [1], mtbsccli as [2] when available.
+    software_list = [
+        Software(
+            id=1,
+            parameter=Parameter(
+                cv_label="MS",
+                cv_accession="MS:1000799",
+                name="MetaboScape",
+                value=software_version,
+            ),
+        )
+    ]
+    if converter_version is not None:
+        software_list.append(
+            Software(
+                id=2,
+                parameter=Parameter(
+                    cv_label="MS",
+                    cv_accession="MS:1000799",
+                    name="mtbsccli",
+                    value=converter_version,
+                ),
+            )
+        )
+
     MTD = Metadata(
         mztab_version="2.0.0-M",
         mztab_id=featuretable_id,
@@ -173,17 +203,7 @@ def build_mztabm(
             cv_accession="MS:1001834",
             name="LC-MS label-free quantitation analysis",
         ),
-        software=[
-            Software(
-                id=1,
-                parameter=Parameter(
-                    cv_label="MS",
-                    cv_accession="MS:1000799",
-                    name="MetaboScape",
-                    value=software_version,
-                ),
-            )
-        ],
+        software=software_list,
         ms_run=ms_runs,
         assay=assays,
         study_variable=study_variables,

@@ -39,6 +39,7 @@ Global flags
 from __future__ import annotations
 
 import getpass
+import importlib.metadata
 import os
 import sys
 from typing import Optional
@@ -50,6 +51,20 @@ from metaPyScape.rest import ApiException
 
 from . import config as cfg
 from . import output as out
+from . import __version__ as _MTBSCCLI_VERSION
+
+
+def _get_pymztabm_version() -> str:
+    """Return the installed mztab_m_io version, or 'unknown' if not found."""
+    try:
+        return importlib.metadata.version("mztab_m_io")
+    except importlib.metadata.PackageNotFoundError:
+        pass
+    try:
+        import mztab_m_io  # noqa: F401
+        return getattr(mztab_m_io, "__version__", "unknown")
+    except ImportError:
+        return "unknown"
 
 
 # ---------------------------------------------------------------------------
@@ -115,7 +130,7 @@ def _call(fn, *args, **kwargs):
 # ---------------------------------------------------------------------------
 
 
-@click.group()
+@click.group(context_settings={"help_option_names": ["-h", "--help"]})
 @click.option(
     "--server",
     "-s",
@@ -131,7 +146,13 @@ def _call(fn, *args, **kwargs):
     show_default=True,
     help="Output format. For convert2mztabm: json writes JSON mzTab-M; tsv/table write TSV.",
 )
-@click.version_option(package_name="metaPyScape", prog_name="mtbsccli")
+@click.version_option(
+    _MTBSCCLI_VERSION,
+    "-v",
+    "--version",
+    prog_name="mtbsccli",
+    message=f"%(prog)s %(version)s  (pymzTabM {_get_pymztabm_version()})",
+)
 @click.pass_context
 def cli(ctx: click.Context, server: Optional[str], output: str) -> None:
     """mtbsccli – read-only command-line client for MetaboScape."""
@@ -212,8 +233,19 @@ def config_show() -> None:
 
 
 @cli.group("get")
-def get_group() -> None:
+@click.option(
+    "--output",
+    "-o",
+    type=click.Choice(["table", "json", "yaml", "tsv"]),
+    default=None,
+    help="Output format (overrides the global -o flag).",
+)
+@click.pass_context
+def get_group(ctx: click.Context, output: Optional[str]) -> None:
     """Retrieve one or many resources from MetaboScape."""
+    ctx.ensure_object(dict)
+    if output is not None:
+        ctx.obj["output"] = output
 
 
 # -- projects ----------------------------------------------------------------
@@ -486,6 +518,7 @@ def convert2mztabm(
         featuretable_id=featuretable_id,
         polarity=polarity,
         software_version=_METABOSCAPE_VERSION,
+        converter_version=_MTBSCCLI_VERSION,
     )
 
     result = mztabm.write(mztab_obj, out_file, format=mztabm_format)
