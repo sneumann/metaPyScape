@@ -363,6 +363,27 @@ class TestBuildMztabm(unittest.TestCase):
         for sml in result.small_molecule_summary:
             self.assertEqual(len(sml.abundance_assay), n_assays)
 
+    def test_sml_reliability_annotated(self):
+        """Annotated feature (formula known) must have reliability '3' (putatively characterized)."""
+        result = self._build()
+        sml = result.small_molecule_summary[42]
+        self.assertIsNotNone(sml.chemical_formula)
+        self.assertEqual(sml.reliability, "3")
+
+    def test_sml_reliability_unannotated(self):
+        """Unannotated feature (no formula) must have reliability '4' (unknown)."""
+        result = self._build()
+        sml = result.small_molecule_summary[0]
+        self.assertIsNone(sml.chemical_formula)
+        self.assertEqual(sml.reliability, "4")
+
+    def test_sml_reliability_never_none(self):
+        """Every SML row must have a non-None reliability value."""
+        result = self._build()
+        for sml in result.small_molecule_summary:
+            self.assertIsNotNone(sml.reliability)
+            self.assertIn(sml.reliability, ("3", "4"))
+
     def test_smf_retention_time(self):
         result = self._build()
         smf = result.small_molecule_feature[0]

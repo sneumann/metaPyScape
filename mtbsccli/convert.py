@@ -263,6 +263,10 @@ def build_mztabm(
         else:
             db_identifier = raw_db_id
 
+        # reliability: "3" (putatively characterized) when the exact mass is
+        # known (i.e. a chemical formula is available), "4" (unknown) otherwise.
+        reliability = "3" if chemical_formula else "4"
+
         sml = SmallMoleculeSummary(
             sml_id=sml_idx,
             smf_id_refs=[sml_idx],
@@ -273,6 +277,7 @@ def build_mztabm(
             chemical_name=_wrap(chemical_name),
             theoretical_neutral_mass=_wrap(theoretical_neutral_mass),
             adduct_ions=_wrap(ion.ion_notation if ion else None),
+            reliability=reliability,
             abundance_assay=abundance,
             abundance_study_variable=[None] * num_study_variables,
             abundance_variation_study_variable=[None] * num_study_variables,
