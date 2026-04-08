@@ -38,7 +38,7 @@ def format_output(data: Any, output_format: str = "table") -> None:
     like ``jq`` without extra lines contaminating the stream.
     """
     if output_format == "json":
-        print(json.dumps(_to_serializable(data), indent=2, default=str), file=sys.stdout)
+        print(json.dumps(_to_serializable(data), indent=2, default=str))
         sys.stdout.flush()
     elif output_format == "yaml":
         print(yaml.dump(_to_serializable(data), default_flow_style=False), end="")
