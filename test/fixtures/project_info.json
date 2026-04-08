@@ -1,0 +1,26 @@
+{
+  "project_id": "87d912bb-4153-4443-bf2a-1036548a0961",
+  "name": "QJZ-2025-02-20-source-comparison",
+  "description": "QJZ-2025-02-20-source-comparison",
+  "owner": "Metabo User",
+  "experiments": [
+    {
+      "experiment_id": "6f281a94-40d5-425b-be62-e283a964796e",
+      "name": "QJZ-2025-02-20-source-comparison",
+      "group_colors": null,
+      "group_symbols": null,
+      "creation_date": 1740738554486,
+      "samples": [
+        {
+          "sample_id": "87d912bb-4153-4443-bf2a-1036548a0961",
+          "name": "SAR-270-II-pagt-1009-#1-pos-OS_P1-A-5_1",
+          "sample_type": "SAMPLE",
+          "creation_date": 1740738554486,
+          "attributes": []
+        }
+      ]
+    }
+  ],
+  "creation_date": 1740738555157,
+  "attribute": []
+}

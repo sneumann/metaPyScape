@@ -106,9 +106,19 @@ except ApiException as e:
 experiment = project.experiments[0]  # Use the first experiment of the project
 featuretable_info = experiment.feature_tables[
     0
-]  # Use the first featuretable of the experiment
-featuretableId = featuretable_info.id  # define the featuretableId
-# featuretableId = "2c32680e-debc-4f77-8970-78cf547d9875"
+]  
+
+# Use the first featuretable of the experiment
+# featuretableId = featuretable_info.id  # define the featuretableId
+
+# This is the first (pos mode), and works :-) 
+featuretableId = "2c32680e-debc-4f77-8970-78cf547d9875"
+
+# This is the second (pos mode)
+#featuretableId = "d9a170b3-307e-463d-82fa-fc58113f17d0"
+
+# This is the third (neg mode)
+#featuretableId = "b4b52da3-23b6-4301-ac9c-168b98c86314"
 
 # GET sample information for samples of defined featuretable based on featuretableId
 
@@ -413,6 +423,10 @@ SMF_dict = {
     "retention_time_in_seconds_end": ["?"] * 937,
 }
 
+# Debug:
+#for key, value in SMF_dict.items():
+#    print(f"{key}: {len(value)}")
+
 SMF_df = pd.DataFrame(data=SMF_dict)
 SMF_df_wi = pd.concat([SMF_df, intensities_df], axis=1)
 
@@ -464,7 +478,7 @@ MTD = Metadata(
         cv_accession="MS:1001834",
         name="LC-MS label-free quantitation analysis",
     ),
-    software=[Software(id=1, parameter=Parameter(name="inhouse"))],
+    software=[Software(id=1, parameter=Parameter(name="inhouse", value="0815")],
     ms_run=[MsRun(id=1, location="ftp://ftp.ebi.ac.uk/path/to/file")],
     assay=[Assay(id=1, name="assay 1", ms_run_ref=[1])],
     study_variable=[
@@ -501,7 +515,7 @@ MTD = Metadata(
         Database(
             param=Parameter(name="hmdb"),
             prefix="HMDB",
-            version="",
+            version="20260401",
             uri="http://www.hmdb.org",
         )
     ],
