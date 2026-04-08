@@ -212,8 +212,19 @@ def config_show() -> None:
 
 
 @cli.group("get")
-def get_group() -> None:
+@click.option(
+    "--output",
+    "-o",
+    type=click.Choice(["table", "json", "yaml", "tsv"]),
+    default=None,
+    help="Output format (overrides the global -o flag).",
+)
+@click.pass_context
+def get_group(ctx: click.Context, output: Optional[str]) -> None:
     """Retrieve one or many resources from MetaboScape."""
+    ctx.ensure_object(dict)
+    if output is not None:
+        ctx.obj["output"] = output
 
 
 # -- projects ----------------------------------------------------------------
