@@ -375,6 +375,11 @@ def patch_mztabm_tsv(path: str) -> None:
             next_m = _SV_LINE_RE.match(next_line)
             next_sv_idx = int(next_m.group(1)) if next_m else None
 
+            # Inject group_ref when the current line IS a study_variable line
+            # (`m` is truthy) AND the next line belongs to a different sv block
+            # (or there is no next sv line).  The `m` guard is intentional: without
+            # it, non-study_variable lines after the block would also trigger
+            # injection because `last_sv_idx` persists across iterations.
             if next_sv_idx != last_sv_idx and m:
                 # End of this study_variable[last_sv_idx] block.
                 output.append(

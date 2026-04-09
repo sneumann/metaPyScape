@@ -540,7 +540,7 @@ class TestBuildMztabm(unittest.TestCase):
             with open(path) as f:
                 lines = f.readlines()
             # Find MTD study_variable[1] lines (excluding group_ref itself).
-            sv1_mtd_indices = [
+            sv1_block_indices = [
                 i for i, ln in enumerate(lines)
                 if ln.startswith("MTD\tstudy_variable[1]") and "group_ref" not in ln
             ]
@@ -550,7 +550,7 @@ class TestBuildMztabm(unittest.TestCase):
                 None,
             )
             self.assertIsNotNone(group_ref_idx)
-            self.assertGreater(group_ref_idx, max(sv1_mtd_indices))
+            self.assertGreater(group_ref_idx, max(sv1_block_indices))
         finally:
             os.unlink(path)
 
