@@ -125,6 +125,12 @@ def _make_samples():
         sample.id = row["id"]
         sample.name = row.get("name")
         sample.analysis = []
+        sample.attributes = []
+        for attr in row.get("attributes", []):
+            sa = metaPyScape.SampleAttribute()
+            sa.name = attr.get("name")
+            sa.value = attr.get("value")
+            sample.attributes.append(sa)
         for a in row.get("analysis", []):
             analysis = metaPyScape.Analysis()
             analysis.id = a["id"]
@@ -184,7 +190,7 @@ class TestBuildMztabm(unittest.TestCase):
     def test_metadata_fields(self):
         result = self._build()
         mtd = result.metadata
-        self.assertEqual(mtd.mztab_version, "2.0.0-M")
+        self.assertEqual(mtd.mztab_version, "2.1.0-M")
         self.assertEqual(mtd.mztab_id, self.featuretable_id)
         self.assertEqual(mtd.title, self.project.name)
         self.assertEqual(mtd.description, self.project_info.description)
@@ -271,10 +277,44 @@ class TestBuildMztabm(unittest.TestCase):
         self.assertEqual(len(result.metadata.ms_run), n_analyses)
 
     def test_study_variable_covers_all_assays(self):
+        """All assay IDs must appear in at least one study_variable's assay_refs."""
         result = self._build()
-        sv = result.metadata.study_variable[0]
         n_assays = len(result.metadata.assay)
-        self.assertEqual(sv.assay_refs, list(range(1, n_assays + 1)))
+        all_refs = set()
+        for sv in result.metadata.study_variable:
+            all_refs.update(sv.assay_refs or [])
+        self.assertEqual(all_refs, set(range(1, n_assays + 1)))
+
+    def test_study_variable_grouped_by_attribute_value(self):
+        """Study variables should be named after sample attribute values (OS, NS)."""
+        result = self._build()
+        sv_names = {sv.name for sv in result.metadata.study_variable}
+        self.assertIn("OS", sv_names)
+        self.assertIn("NS", sv_names)
+
+    def test_study_variable_assay_refs_non_overlapping(self):
+        """Each assay must belong to exactly one study_variable."""
+        result = self._build()
+        all_refs: List[int] = []
+        for sv in result.metadata.study_variable:
+            all_refs.extend(sv.assay_refs or [])
+        self.assertEqual(len(all_refs), len(set(all_refs)),
+                         "Assay IDs appear in more than one study_variable")
+
+    def test_study_variable_count_matches_attribute_values(self):
+        """Number of study variables should equal number of distinct attribute values."""
+        result = self._build()
+        # Fixture has 2 samples with values "OS" and "NS".
+        self.assertEqual(len(result.metadata.study_variable), 2)
+
+    def test_study_variable_only_uses_feature_table_analyses(self):
+        """Analyses not in the intensity matrix must not appear as assay_refs."""
+        result = self._build()
+        n_assays = len(result.metadata.assay)
+        for sv in result.metadata.study_variable:
+            for ref in (sv.assay_refs or []):
+                self.assertGreaterEqual(ref, 1)
+                self.assertLessEqual(ref, n_assays)
 
     def test_sml_count_matches_features(self):
         result = self._build()
@@ -443,6 +483,74 @@ class TestBuildMztabm(unittest.TestCase):
         try:
             _ = mztabm.write(result, path, format="json")
             self.assertTrue(os.path.exists(path))
+        finally:
+            os.unlink(path)
+
+    def test_patch_mztabm_tsv_group_ref(self):
+        """patch_mztabm_tsv inserts study_variable[N]-group_ref lines."""
+        import mztab_m_io as mztabm
+        from mtbsccli.convert import patch_mztabm_tsv
+
+        result = self._build()
+        with tempfile.NamedTemporaryFile(suffix=".mztab", delete=False) as fh:
+            path = fh.name
+        try:
+            mztabm.write(result, path, format="tsv")
+            patch_mztabm_tsv(path)
+            with open(path) as f:
+                content = f.read()
+            n_sv = len(result.metadata.study_variable)
+            for i in range(1, n_sv + 1):
+                expected = f"MTD\tstudy_variable[{i}]-group_ref\tstudy_variable_group[1]"
+                self.assertIn(expected, content,
+                              f"Missing group_ref for study_variable[{i}]")
+        finally:
+            os.unlink(path)
+
+    def test_patch_mztabm_tsv_study_variable_group(self):
+        """patch_mztabm_tsv inserts the hardcoded study_variable_group[1] block."""
+        import mztab_m_io as mztabm
+        from mtbsccli.convert import patch_mztabm_tsv
+
+        result = self._build()
+        with tempfile.NamedTemporaryFile(suffix=".mztab", delete=False) as fh:
+            path = fh.name
+        try:
+            mztabm.write(result, path, format="tsv")
+            patch_mztabm_tsv(path)
+            with open(path) as f:
+                content = f.read()
+            self.assertIn("MTD\tstudy_variable_group[1]\t[,,firstgroup,]", content)
+            self.assertIn("MTD\tstudy_variable_group[1]-description\tgroup description", content)
+            self.assertIn("MTD\tstudy_variable_group[1]-type\tnominal", content)
+        finally:
+            os.unlink(path)
+
+    def test_patch_mztabm_tsv_group_ref_after_sv_block(self):
+        """group_ref line must appear after the assay_refs line of the same sv."""
+        import mztab_m_io as mztabm
+        from mtbsccli.convert import patch_mztabm_tsv
+
+        result = self._build()
+        with tempfile.NamedTemporaryFile(suffix=".mztab", delete=False) as fh:
+            path = fh.name
+        try:
+            mztabm.write(result, path, format="tsv")
+            patch_mztabm_tsv(path)
+            with open(path) as f:
+                lines = f.readlines()
+            # Find MTD study_variable[1] lines (excluding group_ref itself).
+            sv1_mtd_indices = [
+                i for i, ln in enumerate(lines)
+                if ln.startswith("MTD\tstudy_variable[1]") and "group_ref" not in ln
+            ]
+            group_ref_idx = next(
+                (i for i, ln in enumerate(lines)
+                 if ln.startswith("MTD\tstudy_variable[1]-group_ref")),
+                None,
+            )
+            self.assertIsNotNone(group_ref_idx)
+            self.assertGreater(group_ref_idx, max(sv1_mtd_indices))
         finally:
             os.unlink(path)
 

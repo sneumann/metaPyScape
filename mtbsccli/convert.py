@@ -3,7 +3,9 @@
 
 from __future__ import annotations
 
+import re
 import urllib.parse
+from collections import OrderedDict
 from typing import Dict, List, Optional
 
 import metaPyScape
@@ -116,19 +118,30 @@ def build_mztabm(
         ``mztab_m_io.write()``.
     """
     analysis_ids: List[str] = intensity_matrix.analysis_ids or []
+    analysis_ids_set = set(analysis_ids)
 
-    # Build analysis-id → display name lookup from sample metadata.
+    # Build analysis-id → (display name, sample attribute value) from sample metadata.
+    # Only include analyses that are present in the feature table (analysis_ids_set).
     analysis_name: Dict[str, str] = {}
+    analysis_attr_value: Dict[str, Optional[str]] = {}
     for sample in (samples or []):
+        # Use the first non-empty attribute value found on the sample.
+        attr_value: Optional[str] = None
+        for attr in (getattr(sample, "attributes", None) or []):
+            v = getattr(attr, "value", None)
+            if v:
+                attr_value = v
+                break
         for analysis in (sample.analysis or []):
-            if analysis.id:
+            if analysis.id and analysis.id in analysis_ids_set:
                 analysis_name[analysis.id] = analysis.name or analysis.id
+                analysis_attr_value[analysis.id] = attr_value
 
     # Scan polarity parameter (may be None when polarity is unknown).
     polarity_param = _POLARITY_PARAM.get((polarity or "").upper())
     scan_polarity = [polarity_param] if polarity_param is not None else None
 
-    # One ms_run / assay per analysis.
+    # One ms_run / assay per analysis (preserving intensity_matrix ordering).
     ms_runs: List[MsRun] = []
     assays: List[Assay] = []
     for idx, aid in enumerate(analysis_ids, start=1):
@@ -142,18 +155,32 @@ def build_mztabm(
         )
         assays.append(Assay(id=idx, name=name, ms_run_ref=[idx]))
 
-    num_assays = len(assays) or 1
+    # Group assay indices by sample attribute value to form study variables.
+    # Ordering is determined by the first occurrence of each value in analysis_ids.
+    value_to_assay_ids: OrderedDict[str, List[int]] = OrderedDict()
+    for idx, aid in enumerate(analysis_ids, start=1):
+        val = analysis_attr_value.get(aid) or "undefined"
+        value_to_assay_ids.setdefault(val, []).append(idx)
 
-    study_variables = [
-        StudyVariable(
-            id=1,
-            name="undefined",
-            assay_refs=list(range(1, num_assays + 1)),
-            factors=[
-                Parameter(cv_label="MS", cv_accession="MS:1001808", name="undefined")
-            ],
+    study_variables: List[StudyVariable] = []
+    for sv_idx, (val, sv_assay_refs) in enumerate(value_to_assay_ids.items(), start=1):
+        study_variables.append(
+            StudyVariable(
+                id=sv_idx,
+                name=val,
+                assay_refs=sv_assay_refs,
+            )
         )
-    ]
+
+    if not study_variables:
+        study_variables = [
+            StudyVariable(
+                id=1,
+                name="undefined",
+                assay_refs=list(range(1, len(assays) + 1)),
+            )
+        ]
+
     num_study_variables = len(study_variables)
 
     title = getattr(project, "name", None) or featuretable_id
@@ -164,7 +191,7 @@ def build_mztabm(
     )
 
     MTD = Metadata(
-        mztab_version="2.0.0-M",
+        mztab_version="2.1.0-M",
         mztab_id=featuretable_id,
         title=title,
         description=description,
@@ -244,7 +271,7 @@ def build_mztabm(
         if row_idx is not None and row_idx < len(intensities):
             abundance: Optional[List] = list(intensities[row_idx])
         else:
-            abundance = [None] * num_assays
+            abundance = [None] * len(assays)
 
         # Chemical annotation fields.
         chemical_formula = ann.formula if ann else None
@@ -300,3 +327,65 @@ def build_mztabm(
         small_molecule_summary=sml_list,
         small_molecule_feature=smf_list,
     )
+
+
+# Regex to match any MTD study_variable[N] line (both name-value and sub-field lines).
+_SV_LINE_RE = re.compile(r"^MTD\tstudy_variable\[(\d+)\]")
+
+# Hardcoded study_variable_group[1] block for mzTab-M 2.1.0.
+_SV_GROUP_LINES = (
+    "MTD\tstudy_variable_group[1]\t[,,firstgroup,]\n",
+    "MTD\tstudy_variable_group[1]-description\tgroup description\n",
+    "MTD\tstudy_variable_group[1]-type\tnominal\n",
+)
+
+
+def patch_mztabm_tsv(path: str) -> None:
+    """Inject ``study_variable[N]-group_ref`` and ``study_variable_group[1]``
+    lines into a mzTab-M TSV file written by *mztab_m_io*.
+
+    The *mztab_m_io* library (version used here) does not yet serialise
+    ``study_variable_group`` or the per-study-variable ``group_ref`` sub-field.
+    This function post-processes the TSV file to insert those lines in the
+    correct position immediately after each ``study_variable[N]`` block.
+
+    Parameters
+    ----------
+    path:
+        Path to the mzTab-M TSV file to patch (modified in place).
+    """
+    with open(path) as fh:
+        lines = fh.readlines()
+
+    output: List[str] = []
+    last_sv_idx: Optional[int] = None
+    sv_group_injected = False
+
+    for i, line in enumerate(lines):
+        output.append(line)
+
+        m = _SV_LINE_RE.match(line)
+        if m:
+            last_sv_idx = int(m.group(1))
+
+        # Detect end of a study_variable block: current line belongs to
+        # study_variable[N] but the next line does not (or there is no next line).
+        if last_sv_idx is not None:
+            next_line = lines[i + 1] if i + 1 < len(lines) else ""
+            next_m = _SV_LINE_RE.match(next_line)
+            next_sv_idx = int(next_m.group(1)) if next_m else None
+
+            if next_sv_idx != last_sv_idx and m:
+                # End of this study_variable[last_sv_idx] block.
+                output.append(
+                    f"MTD\tstudy_variable[{last_sv_idx}]-group_ref"
+                    f"\tstudy_variable_group[1]\n"
+                )
+
+                # After the last study_variable block, inject the group definition.
+                if next_sv_idx is None and not sv_group_injected:
+                    sv_group_injected = True
+                    output.extend(_SV_GROUP_LINES)
+
+    with open(path, "w") as fh:
+        fh.writelines(output)

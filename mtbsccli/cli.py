@@ -449,7 +449,7 @@ def convert2mztabm(
     ``-o tsv`` / ``-o table`` (default) for TSV mzTab-M output.
     """
     import mztab_m_io as mztabm
-    from .convert import _METABOSCAPE_VERSION, build_mztabm as _build_mztabm
+    from .convert import _METABOSCAPE_VERSION, build_mztabm as _build_mztabm, patch_mztabm_tsv as _patch_mztabm_tsv
 
     fmt = ctx.obj["output"]
     mztabm_format = "json" if fmt == "json" else "tsv"
@@ -492,6 +492,8 @@ def convert2mztabm(
     if not result.success:
         for msg in (result.messages or []):
             click.echo(f"Warning: {msg}", err=True)
+    if mztabm_format == "tsv":
+        _patch_mztabm_tsv(out_file)
     click.echo(f"Wrote mzTab-M ({mztabm_format}) to {out_file}", err=True)
 
 
