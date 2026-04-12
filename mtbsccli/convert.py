@@ -13,7 +13,6 @@ from mztab_m_io.model.common import (
     Database,
     MsRun,
     Parameter,
-    Sample,
     Software,
     StudyVariable,
 )
@@ -135,19 +134,6 @@ def build_mztabm(
                 if sample.id and sample.id not in ft_samples_ordered:
                     ft_samples_ordered[sample.id] = sample
 
-    # Create one mzTab Sample per distinct MetaboScape Sample that contributes
-    # to the feature table, carrying its type and attributes.
-    mztab_samples: List[Sample] = []
-    sample_id_to_mztab_idx: Dict[str, int] = {}
-    for sample_idx, (sid, sample_obj) in enumerate(ft_samples_ordered.items(), start=1):
-        mztab_sample = Sample(
-            id=sample_idx,
-            name=sample_obj.name,
-            description=sample_obj.type,
-        )
-        mztab_samples.append(mztab_sample)
-        sample_id_to_mztab_idx[sid] = sample_idx
-
     # Build analysis-id → display name lookup from sample metadata.
     analysis_name: Dict[str, str] = {}
     for sample in (samples or []):
@@ -164,12 +150,6 @@ def build_mztabm(
     assays: List[Assay] = []
     for idx, aid in enumerate(analysis_ids, start=1):
         name = analysis_name.get(aid, aid)
-        parent_sample = analysis_to_sample.get(aid)
-        sample_ref = (
-            sample_id_to_mztab_idx.get(parent_sample.id)
-            if parent_sample and parent_sample.id
-            else None
-        )
         ms_runs.append(
             MsRun(
                 id=idx,
@@ -177,7 +157,7 @@ def build_mztabm(
                 scan_polarity=scan_polarity,
             )
         )
-        assays.append(Assay(id=idx, name=name, ms_run_ref=[idx], sample_ref=sample_ref))
+        assays.append(Assay(id=idx, name=name, ms_run_ref=[idx]))
 
     num_assays = len(assays) or 1
 
@@ -198,6 +178,7 @@ def build_mztabm(
             StudyVariable(
                 id=sv_idx,
                 name=sv_value,
+                description=sv_value,
                 assay_refs=sv_assay_ids,
             )
             for sv_idx, (sv_value, sv_assay_ids) in enumerate(
@@ -209,6 +190,7 @@ def build_mztabm(
             StudyVariable(
                 id=1,
                 name="undefined",
+                description="undefined",
                 assay_refs=list(range(1, num_assays + 1)),
                 factors=[
                     Parameter(
@@ -264,7 +246,6 @@ def build_mztabm(
         software=software_list,
         ms_run=ms_runs,
         assay=assays,
-        sample=mztab_samples if mztab_samples else None,
         study_variable=study_variables,
         cv=[_MS_CV],
         small_molecule_quantification_unit=Parameter(
