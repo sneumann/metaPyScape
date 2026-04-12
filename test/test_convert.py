@@ -330,7 +330,7 @@ class TestBuildMztabm(unittest.TestCase):
                 f"assay {assay.id!r} ({assay.name!r}) has no sample_ref",
             )
 
-    def test_no_attribute_falls_back_to_undefined(self):
+    def test_missing_attributes_create_undefined_study_variable(self):
         """When no sample attributes are present a single 'undefined' study
         variable covering all assays must be produced."""
         from mtbsccli.convert import build_mztabm

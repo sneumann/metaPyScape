@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import urllib.parse
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 import metaPyScape
 from mztab_m_io.model.common import (
@@ -121,8 +121,8 @@ def build_mztabm(
 
     # Build analysis-id → MetaboScape Sample lookup and collect samples that
     # have at least one analysis present in the feature table.
-    analysis_to_sample: Dict[str, Any] = {}
-    ft_samples_ordered: Dict[str, Any] = {}  # preserves insertion order (py3.7+)
+    analysis_to_sample: Dict[str, metaPyScape.Sample] = {}
+    ft_samples_ordered: Dict[str, metaPyScape.Sample] = {}  # preserves insertion order (py3.7+)
     for sample in (samples or []):
         for analysis in (sample.analysis or []):
             if analysis.id and analysis.id in ft_analysis_id_set:
