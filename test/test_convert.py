@@ -124,13 +124,20 @@ def _make_samples():
         sample = metaPyScape.Sample()
         sample.id = row["id"]
         sample.name = row.get("name")
+        sample.type = row.get("type")
         sample.analysis = []
+        sample.attributes = []
         for a in row.get("analysis", []):
             analysis = metaPyScape.Analysis()
             analysis.id = a["id"]
             analysis.name = a.get("name")
             analysis.include = a.get("include", True)
             sample.analysis.append(analysis)
+        for attr_data in row.get("attributes", []):
+            attr = metaPyScape.SampleAttribute()
+            attr.name = attr_data.get("name")
+            attr.value = attr_data.get("value")
+            sample.attributes.append(attr)
         samples.append(sample)
     return samples
 
@@ -272,9 +279,81 @@ class TestBuildMztabm(unittest.TestCase):
 
     def test_study_variable_covers_all_assays(self):
         result = self._build()
-        sv = result.metadata.study_variable[0]
+        # All assay refs across all study variables must cover every assay.
+        all_assay_refs = set()
+        for sv in result.metadata.study_variable:
+            all_assay_refs.update(sv.assay_refs)
         n_assays = len(result.metadata.assay)
-        self.assertEqual(sv.assay_refs, list(range(1, n_assays + 1)))
+        self.assertEqual(all_assay_refs, set(range(1, n_assays + 1)))
+
+    def test_study_variable_names_from_attribute_values(self):
+        """study_variable names must be derived from sample attribute values."""
+        result = self._build()
+        sv_names = [sv.name for sv in result.metadata.study_variable]
+        # Fixture has two samples with attribute values "OS" and "NS".
+        self.assertIn("OS", sv_names)
+        self.assertIn("NS", sv_names)
+
+    def test_study_variable_assay_refs_match_attribute_values(self):
+        """Each study_variable's assay_refs must include only assays from samples
+        that carry the matching attribute value."""
+        result = self._build()
+        n_assays = len(result.metadata.assay)
+        # Fixture splits 18 analyses evenly (9 OS, 9 NS).
+        self.assertEqual(n_assays, 18)
+        sv_by_name = {sv.name: sv for sv in result.metadata.study_variable}
+        self.assertEqual(len(sv_by_name["OS"].assay_refs), 9)
+        self.assertEqual(len(sv_by_name["NS"].assay_refs), 9)
+        # The two groups must be disjoint and together cover all assays.
+        os_refs = set(sv_by_name["OS"].assay_refs)
+        ns_refs = set(sv_by_name["NS"].assay_refs)
+        self.assertEqual(os_refs & ns_refs, set())
+        self.assertEqual(os_refs | ns_refs, set(range(1, n_assays + 1)))
+
+    def test_sample_entries_in_metadata(self):
+        """MTD must contain one mzTab Sample per distinct MetaboScape Sample
+        that has analyses in the feature table."""
+        result = self._build()
+        # Fixture has 2 MetaboScape samples contributing to the feature table.
+        self.assertIsNotNone(result.metadata.sample)
+        self.assertEqual(len(result.metadata.sample), 2)
+        sample_names = [s.name for s in result.metadata.sample]
+        self.assertIn("SAR-270-II-pagt-1009-#1-pos-OS_P1-A-5_1", sample_names)
+        self.assertIn("SAR-270-II-pagt-1009-#1-pos-NS_P1-A-5_1", sample_names)
+
+    def test_assay_has_sample_ref(self):
+        """Every assay must carry a sample_ref pointing to its mzTab Sample."""
+        result = self._build()
+        for assay in result.metadata.assay:
+            self.assertIsNotNone(
+                assay.sample_ref,
+                f"assay {assay.id!r} ({assay.name!r}) has no sample_ref",
+            )
+
+    def test_missing_attributes_create_undefined_study_variable(self):
+        """When no sample attributes are present a single 'undefined' study
+        variable covering all assays must be produced."""
+        from mtbsccli.convert import build_mztabm
+
+        # Strip all attributes from the samples.
+        for sample in self.samples:
+            sample.attributes = []
+
+        result = build_mztabm(
+            project=self.project,
+            project_info=self.project_info,
+            feature_table=self.feature_table,
+            samples=self.samples,
+            intensity_matrix=self.intensity_matrix,
+            featuretable_id=self.featuretable_id,
+        )
+        self.assertEqual(len(result.metadata.study_variable), 1)
+        self.assertEqual(result.metadata.study_variable[0].name, "undefined")
+        n_assays = len(result.metadata.assay)
+        self.assertEqual(
+            result.metadata.study_variable[0].assay_refs,
+            list(range(1, n_assays + 1)),
+        )
 
     def test_sml_count_matches_features(self):
         result = self._build()

@@ -7,7 +7,9 @@
       "volume": 1.0,
       "unit": null
     },
-    "attributes": [],
+    "attributes": [
+      {"name": "source", "value": "OS"}
+    ],
     "analysis": [
       {
         "id": "1abc4fcc-cb80-406c-b2ad-8026af2f6589",
@@ -53,7 +55,21 @@
         "id": "a928fc72-44f8-47f7-be5c-4a0a937f28ab",
         "name": "RRA-3rd-repli-Col-0-nt1-pos-OS_P1-A-6_1_12657",
         "include": true
-      },
+      }
+    ]
+  },
+  {
+    "id": "cc3b8222-5808-4b5f-9a41-9630f1d164fd",
+    "name": "SAR-270-II-pagt-1009-#1-pos-NS_P1-A-5_1",
+    "type": "SAMPLE",
+    "volume": {
+      "volume": 1.0,
+      "unit": null
+    },
+    "attributes": [
+      {"name": "source", "value": "NS"}
+    ],
+    "analysis": [
       {
         "id": "90c6abf5-1eb7-4a0b-970b-bdf449c59be7",
         "name": "Methanol-pos-2-NS_P1-F-9_1_12675",

@@ -13,6 +13,7 @@ from mztab_m_io.model.common import (
     Database,
     MsRun,
     Parameter,
+    Sample,
     Software,
     StudyVariable,
 )
@@ -121,6 +122,31 @@ def build_mztabm(
         ``mztab_m_io.write()``.
     """
     analysis_ids: List[str] = intensity_matrix.analysis_ids or []
+    ft_analysis_id_set = set(analysis_ids)
+
+    # Build analysis-id → MetaboScape Sample lookup and collect samples that
+    # have at least one analysis present in the feature table.
+    analysis_to_sample: Dict[str, metaPyScape.Sample] = {}
+    ft_samples_ordered: Dict[str, metaPyScape.Sample] = {}  # preserves insertion order (py3.7+)
+    for sample in (samples or []):
+        for analysis in (sample.analysis or []):
+            if analysis.id and analysis.id in ft_analysis_id_set:
+                analysis_to_sample[analysis.id] = sample
+                if sample.id and sample.id not in ft_samples_ordered:
+                    ft_samples_ordered[sample.id] = sample
+
+    # Create one mzTab Sample per distinct MetaboScape Sample that contributes
+    # to the feature table, carrying its type and attributes.
+    mztab_samples: List[Sample] = []
+    sample_id_to_mztab_idx: Dict[str, int] = {}
+    for sample_idx, (sid, sample_obj) in enumerate(ft_samples_ordered.items(), start=1):
+        mztab_sample = Sample(
+            id=sample_idx,
+            name=sample_obj.name,
+            description=sample_obj.type,
+        )
+        mztab_samples.append(mztab_sample)
+        sample_id_to_mztab_idx[sid] = sample_idx
 
     # Build analysis-id → display name lookup from sample metadata.
     analysis_name: Dict[str, str] = {}
@@ -133,11 +159,17 @@ def build_mztabm(
     polarity_param = _POLARITY_PARAM.get((polarity or "").upper())
     scan_polarity = [polarity_param] if polarity_param is not None else None
 
-    # One ms_run / assay per analysis.
+    # One ms_run / assay per analysis present in the feature table.
     ms_runs: List[MsRun] = []
     assays: List[Assay] = []
     for idx, aid in enumerate(analysis_ids, start=1):
         name = analysis_name.get(aid, aid)
+        parent_sample = analysis_to_sample.get(aid)
+        sample_ref = (
+            sample_id_to_mztab_idx.get(parent_sample.id)
+            if parent_sample and parent_sample.id
+            else None
+        )
         ms_runs.append(
             MsRun(
                 id=idx,
@@ -145,20 +177,46 @@ def build_mztabm(
                 scan_polarity=scan_polarity,
             )
         )
-        assays.append(Assay(id=idx, name=name, ms_run_ref=[idx]))
+        assays.append(Assay(id=idx, name=name, ms_run_ref=[idx], sample_ref=sample_ref))
 
     num_assays = len(assays) or 1
 
-    study_variables = [
-        StudyVariable(
-            id=1,
-            name="undefined",
-            assay_refs=list(range(1, num_assays + 1)),
-            factors=[
-                Parameter(cv_label="MS", cv_accession="MS:1001808", name="undefined")
-            ],
-        )
-    ]
+    # Build study_variable list grouped by unique attribute value.
+    # Each distinct SampleAttribute.value becomes one StudyVariable whose
+    # assay_refs contains every assay whose parent sample carries that value.
+    # When no attributes are present a single "undefined" fallback is used.
+    value_to_assay_ids: Dict[str, List[int]] = {}
+    for assay_idx, aid in enumerate(analysis_ids, start=1):
+        parent_sample = analysis_to_sample.get(aid)
+        attrs = (parent_sample.attributes or []) if parent_sample else []
+        for attr in attrs:
+            if attr.value:
+                value_to_assay_ids.setdefault(attr.value, []).append(assay_idx)
+
+    if value_to_assay_ids:
+        study_variables = [
+            StudyVariable(
+                id=sv_idx,
+                name=sv_value,
+                assay_refs=sv_assay_ids,
+            )
+            for sv_idx, (sv_value, sv_assay_ids) in enumerate(
+                value_to_assay_ids.items(), start=1
+            )
+        ]
+    else:
+        study_variables = [
+            StudyVariable(
+                id=1,
+                name="undefined",
+                assay_refs=list(range(1, num_assays + 1)),
+                factors=[
+                    Parameter(
+                        cv_label="MS", cv_accession="MS:1001808", name="undefined"
+                    )
+                ],
+            )
+        ]
     num_study_variables = len(study_variables)
 
     title = getattr(project, "name", None) or featuretable_id
@@ -206,6 +264,7 @@ def build_mztabm(
         software=software_list,
         ms_run=ms_runs,
         assay=assays,
+        sample=mztab_samples if mztab_samples else None,
         study_variable=study_variables,
         cv=[_MS_CV],
         small_molecule_quantification_unit=Parameter(
