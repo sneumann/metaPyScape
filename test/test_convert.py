@@ -294,6 +294,16 @@ class TestBuildMztabm(unittest.TestCase):
         self.assertIn("OS", sv_names)
         self.assertIn("NS", sv_names)
 
+    def test_study_variable_description_matches_name(self):
+        """Each study_variable must have a description equal to its name."""
+        result = self._build()
+        for sv in result.metadata.study_variable:
+            self.assertEqual(
+                sv.description,
+                sv.name,
+                f"study_variable {sv.id!r} description does not match name",
+            )
+
     def test_study_variable_assay_refs_match_attribute_values(self):
         """Each study_variable's assay_refs must include only assays from samples
         that carry the matching attribute value."""
@@ -311,23 +321,17 @@ class TestBuildMztabm(unittest.TestCase):
         self.assertEqual(os_refs | ns_refs, set(range(1, n_assays + 1)))
 
     def test_sample_entries_in_metadata(self):
-        """MTD must contain one mzTab Sample per distinct MetaboScape Sample
-        that has analyses in the feature table."""
+        """MTD must not contain any mzTab Sample entries."""
         result = self._build()
-        # Fixture has 2 MetaboScape samples contributing to the feature table.
-        self.assertIsNotNone(result.metadata.sample)
-        self.assertEqual(len(result.metadata.sample), 2)
-        sample_names = [s.name for s in result.metadata.sample]
-        self.assertIn("SAR-270-II-pagt-1009-#1-pos-OS_P1-A-5_1", sample_names)
-        self.assertIn("SAR-270-II-pagt-1009-#1-pos-NS_P1-A-5_1", sample_names)
+        self.assertIsNone(result.metadata.sample)
 
-    def test_assay_has_sample_ref(self):
-        """Every assay must carry a sample_ref pointing to its mzTab Sample."""
+    def test_assay_has_no_sample_ref(self):
+        """Assays must not carry a sample_ref."""
         result = self._build()
         for assay in result.metadata.assay:
-            self.assertIsNotNone(
+            self.assertIsNone(
                 assay.sample_ref,
-                f"assay {assay.id!r} ({assay.name!r}) has no sample_ref",
+                f"assay {assay.id!r} ({assay.name!r}) has unexpected sample_ref",
             )
 
     def test_missing_attributes_create_undefined_study_variable(self):
