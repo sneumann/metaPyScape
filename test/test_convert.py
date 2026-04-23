@@ -1,5 +1,5 @@
 # coding: utf-8
-"""Unit tests for mtbsccli.convert.build_mztabm.
+"""Unit tests for mtbsccli.convert (build_mztabm, build_mgf, build_mat).
 
 These tests use synthetic MetaboScape model objects built from the JSON
 fixture files in test/fixtures/.  No live MetaboScape server is required.
@@ -607,6 +607,479 @@ class TestConvert2MztabmCli(unittest.TestCase):
             )
             self.assertEqual(result.exit_code, 0, result.output)
             self.assertTrue(os.path.exists(path))
+        finally:
+            if os.path.exists(path):
+                os.unlink(path)
+
+
+# ---------------------------------------------------------------------------
+# Helpers for build_mgf / build_mat tests
+# ---------------------------------------------------------------------------
+
+
+def _make_signal(mz: float, intensity: float):
+    """Build a metaPyScape.Signal."""
+    import metaPyScape
+
+    s = metaPyScape.Signal()
+    s.mz = mz
+    s.intensity = intensity
+    s.width = 0.0
+    return s
+
+
+def _make_msms_spectrum(signals):
+    """Build a metaPyScape.MsMsSpectrum with the given Signal list."""
+    import metaPyScape
+
+    sp = metaPyScape.MsMsSpectrum()
+    sp.signals = signals
+    return sp
+
+
+def _make_ms_spectrum(signals, analysis_id=None, mean_measured_mz=None,
+                      rt_in_seconds=None, ccs=None):
+    """Build a metaPyScape.MsSpectrum."""
+    import metaPyScape
+
+    sp = metaPyScape.MsSpectrum()
+    sp.signals = signals
+    sp.analysis_id = analysis_id
+    sp.mean_measured_mz = mean_measured_mz
+    sp.rt_in_seconds = rt_in_seconds
+    sp.ccs = ccs
+    return sp
+
+
+def _make_msms_info(feature_id, feature_ion, spectra):
+    """Build a metaPyScape.FeatureIonMsMsSpectrumInfo."""
+    import metaPyScape
+
+    info = metaPyScape.FeatureIonMsMsSpectrumInfo()
+    info.feature_id = feature_id
+    info.feature_ion = feature_ion
+    info.spectra = spectra
+    return info
+
+
+def _make_ms1_info(feature_id, feature_ion, spectra):
+    """Build a metaPyScape.FeatureIonMsSpectrumInfo."""
+    import metaPyScape
+
+    info = metaPyScape.FeatureIonMsSpectrumInfo()
+    info.feature_id = feature_id
+    info.feature_ion = feature_ion
+    info.spectra = spectra
+    return info
+
+
+# ---------------------------------------------------------------------------
+# Tests for build_mgf
+# ---------------------------------------------------------------------------
+
+
+class TestBuildMgf(unittest.TestCase):
+    """Tests for mtbsccli.convert.build_mgf()."""
+
+    def setUp(self):
+        self.feature_table = _make_feature_table()
+
+        # Build a minimal msms_map: every feature gets one MS/MS spectrum
+        # with two peaks.
+        self.msms_map = {}
+        for feat in self.feature_table:
+            ion = feat.feature_ions[0] if feat.feature_ions else None
+            signals = [_make_signal(100.0, 500.0), _make_signal(150.0, 1000.0)]
+            sp = _make_msms_spectrum(signals)
+            info = _make_msms_info(feat.id, ion, [sp])
+            self.msms_map[feat.id] = [info]
+
+    def _build(self, polarity=None):
+        from mtbsccli.convert import build_mgf
+
+        return build_mgf(self.feature_table, self.msms_map, polarity=polarity)
+
+    def test_returns_string(self):
+        result = self._build()
+        self.assertIsInstance(result, str)
+
+    def test_contains_begin_end_ions(self):
+        result = self._build()
+        self.assertIn("BEGIN IONS", result)
+        self.assertIn("END IONS", result)
+
+    def test_block_count_matches_features_with_msms(self):
+        """One BEGIN IONS block per feature that has MS/MS data."""
+        result = self._build()
+        self.assertEqual(result.count("BEGIN IONS"), len(self.feature_table))
+
+    def test_peaks_present(self):
+        result = self._build()
+        self.assertIn("100.0\t500.0", result)
+        self.assertIn("150.0\t1000.0", result)
+
+    def test_pepmass_is_ion_mz(self):
+        result = self._build()
+        # First feature ion mz: 104.10685559415053
+        self.assertIn("PEPMASS=104.10685559415053", result)
+
+    def test_rtinseconds_present(self):
+        result = self._build()
+        # First feature rt: 31.070858001708984
+        self.assertIn("RTINSECONDS=31.070858001708984", result)
+
+    def test_charge_parsed_from_m_plus_h(self):
+        """'[M+H]+' ion notation must produce CHARGE=1+."""
+        result = self._build()
+        self.assertIn("CHARGE=1+", result)
+
+    def test_ionmode_from_polarity_positive(self):
+        result = self._build(polarity="POSITIVE")
+        self.assertIn("IONMODE=Positive", result)
+
+    def test_ionmode_from_polarity_negative(self):
+        # Override every ion notation to negative so IONMODE is inferred
+        for feat in self.feature_table:
+            if feat.feature_ions:
+                feat.feature_ions[0]._ion_notation = "[M-H]-"
+        result = self._build(polarity="NEGATIVE")
+        self.assertIn("IONMODE=Negative", result)
+
+    def test_ionmode_inferred_without_polarity_arg(self):
+        """IONMODE must be inferred from '[M+H]+' even when polarity=None."""
+        result = self._build(polarity=None)
+        self.assertIn("IONMODE=Positive", result)
+
+    def test_adduct_present(self):
+        result = self._build()
+        self.assertIn("ADDUCT=[M+H]+", result)
+
+    def test_ccs_present_when_available(self):
+        result = self._build()
+        # First feature ion ccs: 161.7107391357422
+        self.assertIn("CCS=161.7107391357422", result)
+
+    def test_annotation_name_in_block(self):
+        """Annotated feature (Kinetin, index 42) must include NAME field."""
+        result = self._build()
+        self.assertIn("NAME=Kinetin", result)
+
+    def test_annotation_formula_in_block(self):
+        result = self._build()
+        self.assertIn("FORMULA=C10H9N5O", result)
+
+    def test_feature_id_field(self):
+        result = self._build()
+        feat0_id = self.feature_table[0].id
+        self.assertIn(f"FEATURE_ID={feat0_id}", result)
+
+    def test_feature_without_msms_is_skipped(self):
+        """A feature with an empty spectra list must not appear in the output."""
+        first_id = self.feature_table[0].id
+        self.msms_map[first_id] = []
+        result = self._build()
+        # One fewer block expected.
+        self.assertEqual(result.count("BEGIN IONS"), len(self.feature_table) - 1)
+
+    def test_empty_feature_table(self):
+        from mtbsccli.convert import build_mgf
+
+        result = build_mgf([], {})
+        self.assertEqual(result.strip(), "")
+
+    def test_no_msms_map_entries_produces_empty_output(self):
+        from mtbsccli.convert import build_mgf
+
+        result = build_mgf(self.feature_table, {})
+        self.assertEqual(result.strip(), "")
+
+
+# ---------------------------------------------------------------------------
+# Tests for build_mat
+# ---------------------------------------------------------------------------
+
+
+class TestBuildMat(unittest.TestCase):
+    """Tests for mtbsccli.convert.build_mat()."""
+
+    def setUp(self):
+        self.feature_table = _make_feature_table()
+
+        self.msms_map = {}
+        self.ms1_map = {}
+        for feat in self.feature_table:
+            ion = feat.feature_ions[0] if feat.feature_ions else None
+
+            ms2_signals = [_make_signal(100.0, 500.0), _make_signal(150.0, 1000.0)]
+            ms2_sp = _make_msms_spectrum(ms2_signals)
+            msms_info = _make_msms_info(feat.id, ion, [ms2_sp])
+            self.msms_map[feat.id] = [msms_info]
+
+            ms1_signals = [
+                _make_signal(104.1, 10000.0),
+                _make_signal(105.1, 1000.0),
+            ]
+            ms1_sp = _make_ms_spectrum(ms1_signals)
+            ms1_info = _make_ms1_info(feat.id, ion, [ms1_sp])
+            self.ms1_map[feat.id] = [ms1_info]
+
+    def _build(self, polarity=None):
+        from mtbsccli.convert import build_mat
+
+        return build_mat(
+            self.feature_table, self.msms_map, self.ms1_map, polarity=polarity
+        )
+
+    def test_returns_string(self):
+        result = self._build()
+        self.assertIsInstance(result, str)
+
+    def test_compound_block_count(self):
+        result = self._build()
+        self.assertEqual(result.count(">compound "), len(self.feature_table))
+
+    def test_parentmass_present(self):
+        result = self._build()
+        # First feature mass: 103.09957914192053
+        self.assertIn(">parentmass 103.09957914192053", result)
+
+    def test_charge_from_positive_ion_notation(self):
+        result = self._build()
+        self.assertIn(">charge 1", result)
+
+    def test_charge_from_negative_ion_notation(self):
+        for feat in self.feature_table:
+            if feat.feature_ions:
+                feat.feature_ions[0]._ion_notation = "[M-H]-"
+        result = self._build()
+        self.assertIn(">charge -1", result)
+
+    def test_charge_fallback_to_polarity(self):
+        """When ion_notation has no charge, polarity argument must be used."""
+        for feat in self.feature_table:
+            if feat.feature_ions:
+                feat.feature_ions[0]._ion_notation = None
+        result = self._build(polarity="NEGATIVE")
+        self.assertIn(">charge -1", result)
+
+    def test_rt_present(self):
+        result = self._build()
+        self.assertIn(">rt 31.070858001708984", result)
+
+    def test_ionization_present(self):
+        result = self._build()
+        self.assertIn(">ionization [M+H]+", result)
+
+    def test_ccs_present(self):
+        result = self._build()
+        self.assertIn(">ccs 161.7107391357422", result)
+
+    def test_annotation_formula_in_block(self):
+        result = self._build()
+        self.assertIn(">formula C10H9N5O", result)
+
+    def test_ms1_section_present(self):
+        result = self._build()
+        self.assertIn(">ms1", result)
+
+    def test_ms1_peaks_present(self):
+        result = self._build()
+        self.assertIn("104.1 10000.0", result)
+        self.assertIn("105.1 1000.0", result)
+
+    def test_ms2_section_present(self):
+        result = self._build()
+        self.assertIn(">ms2", result)
+
+    def test_ms2_peaks_present(self):
+        result = self._build()
+        self.assertIn("100.0 500.0", result)
+        self.assertIn("150.0 1000.0", result)
+
+    def test_annotated_compound_name_used(self):
+        """Annotated feature (Kinetin) must use compound name, not UUID."""
+        result = self._build()
+        self.assertIn(">compound Kinetin", result)
+
+    def test_unannotated_feature_uses_id(self):
+        """Unannotated feature must use the feature UUID as compound name."""
+        first_feat = self.feature_table[0]
+        self.assertIsNone(first_feat.primary_annotation)
+        result = self._build()
+        self.assertIn(f">compound {first_feat.id}", result)
+
+    def test_feature_without_msms_is_skipped(self):
+        first_id = self.feature_table[0].id
+        self.msms_map[first_id] = []
+        result = self._build()
+        self.assertEqual(result.count(">compound "), len(self.feature_table) - 1)
+
+    def test_no_ms1_still_writes_ms2(self):
+        from mtbsccli.convert import build_mat
+
+        result = build_mat(self.feature_table, self.msms_map, {})
+        self.assertIn(">ms2", result)
+        self.assertNotIn(">ms1", result)
+
+    def test_empty_feature_table(self):
+        from mtbsccli.convert import build_mat
+
+        result = build_mat([], {}, {})
+        self.assertEqual(result.strip(), "")
+
+
+# ---------------------------------------------------------------------------
+# CLI integration tests for convert2mgf
+# ---------------------------------------------------------------------------
+
+
+class TestConvert2MgfCli(unittest.TestCase):
+    """Test the convert2mgf Click command with mocked API calls."""
+
+    def _run_cli(self, args):
+        from click.testing import CliRunner
+        from mtbsccli.cli import cli
+
+        feature_table = _make_feature_table()
+
+        def _mock_msms(feature_id):
+            feat = next((f for f in feature_table if f.id == feature_id), None)
+            if feat is None:
+                return []
+            ion = feat.feature_ions[0] if feat.feature_ions else None
+            signals = [_make_signal(100.0, 500.0), _make_signal(150.0, 1000.0)]
+            sp = _make_msms_spectrum(signals)
+            return [_make_msms_info(feature_id, ion, [sp])]
+
+        with patch("metaPyScape.FeaturetableApi") as MockFt, patch(
+            "mtbsccli.cli._make_client"
+        ) as MockClient:
+            MockClient.return_value = MagicMock()
+            mock_ft_instance = MagicMock()
+            mock_ft_instance.retrieve_feature_table.return_value = feature_table
+            mock_ft_instance.retrieve_feature_ms_ms_spectra.side_effect = _mock_msms
+            MockFt.return_value = mock_ft_instance
+
+            runner = CliRunner()
+            result = runner.invoke(cli, args, catch_exceptions=False)
+            return result
+
+    def test_creates_mgf_file(self):
+        with tempfile.NamedTemporaryFile(suffix=".mgf", delete=False) as fh:
+            path = fh.name
+        os.unlink(path)
+        try:
+            result = self._run_cli(
+                ["convert2mgf", "ft-0001-0000-0000-000000000001", "-f", path]
+            )
+            self.assertEqual(result.exit_code, 0, result.output)
+            self.assertTrue(os.path.exists(path))
+            content = open(path).read()
+            self.assertIn("BEGIN IONS", content)
+            self.assertIn("END IONS", content)
+        finally:
+            if os.path.exists(path):
+                os.unlink(path)
+
+    def test_mgf_with_polarity_flag(self):
+        with tempfile.NamedTemporaryFile(suffix=".mgf", delete=False) as fh:
+            path = fh.name
+        os.unlink(path)
+        try:
+            result = self._run_cli(
+                [
+                    "convert2mgf",
+                    "ft-0001-0000-0000-000000000001",
+                    "-f", path,
+                    "-p", "POSITIVE",
+                ]
+            )
+            self.assertEqual(result.exit_code, 0, result.output)
+            content = open(path).read()
+            self.assertIn("IONMODE=Positive", content)
+        finally:
+            if os.path.exists(path):
+                os.unlink(path)
+
+
+# ---------------------------------------------------------------------------
+# CLI integration tests for convert2mat
+# ---------------------------------------------------------------------------
+
+
+class TestConvert2MatCli(unittest.TestCase):
+    """Test the convert2mat Click command with mocked API calls."""
+
+    def _run_cli(self, args):
+        from click.testing import CliRunner
+        from mtbsccli.cli import cli
+
+        feature_table = _make_feature_table()
+
+        def _mock_msms(feature_id):
+            feat = next((f for f in feature_table if f.id == feature_id), None)
+            if feat is None:
+                return []
+            ion = feat.feature_ions[0] if feat.feature_ions else None
+            signals = [_make_signal(100.0, 500.0), _make_signal(150.0, 1000.0)]
+            sp = _make_msms_spectrum(signals)
+            return [_make_msms_info(feature_id, ion, [sp])]
+
+        def _mock_ms1(feature_id):
+            feat = next((f for f in feature_table if f.id == feature_id), None)
+            if feat is None:
+                return []
+            ion = feat.feature_ions[0] if feat.feature_ions else None
+            signals = [_make_signal(104.1, 10000.0), _make_signal(105.1, 500.0)]
+            sp = _make_ms_spectrum(signals)
+            return [_make_ms1_info(feature_id, ion, [sp])]
+
+        with patch("metaPyScape.FeaturetableApi") as MockFt, patch(
+            "mtbsccli.cli._make_client"
+        ) as MockClient:
+            MockClient.return_value = MagicMock()
+            mock_ft_instance = MagicMock()
+            mock_ft_instance.retrieve_feature_table.return_value = feature_table
+            mock_ft_instance.retrieve_feature_ms_ms_spectra.side_effect = _mock_msms
+            mock_ft_instance.retrieve_feature_ion_ms_spectra.side_effect = _mock_ms1
+            MockFt.return_value = mock_ft_instance
+
+            runner = CliRunner()
+            result = runner.invoke(cli, args, catch_exceptions=False)
+            return result
+
+    def test_creates_mat_file(self):
+        with tempfile.NamedTemporaryFile(suffix=".ms", delete=False) as fh:
+            path = fh.name
+        os.unlink(path)
+        try:
+            result = self._run_cli(
+                ["convert2mat", "ft-0001-0000-0000-000000000001", "-f", path]
+            )
+            self.assertEqual(result.exit_code, 0, result.output)
+            self.assertTrue(os.path.exists(path))
+            content = open(path).read()
+            self.assertIn(">compound ", content)
+            self.assertIn(">ms1", content)
+            self.assertIn(">ms2", content)
+        finally:
+            if os.path.exists(path):
+                os.unlink(path)
+
+    def test_mat_with_polarity_flag(self):
+        with tempfile.NamedTemporaryFile(suffix=".ms", delete=False) as fh:
+            path = fh.name
+        os.unlink(path)
+        try:
+            result = self._run_cli(
+                [
+                    "convert2mat",
+                    "ft-0001-0000-0000-000000000001",
+                    "-f", path,
+                    "-p", "NEGATIVE",
+                ]
+            )
+            self.assertEqual(result.exit_code, 0, result.output)
         finally:
             if os.path.exists(path):
                 os.unlink(path)
