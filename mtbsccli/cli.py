@@ -29,6 +29,12 @@ Usage examples
   mtbsccli -o json convert2mztabm <projectId> <featuretableId> -f output.json
   mtbsccli -o tsv  convert2mztabm <projectId> <featuretableId> -f output.mztab
 
+  # MGF conversion for GNPS
+  mtbsccli convert2mgf <featuretableId> -f output.mgf
+
+  # SIRIUS .ms conversion
+  mtbsccli convert2mat <featuretableId> -f output.ms
+
 Global flags
 -------------
   --server / -s    Override server URL (or set env MTBSC_SERVER)
@@ -526,6 +532,144 @@ def convert2mztabm(
         for msg in (result.messages or []):
             click.echo(f"Warning: {msg}", err=True)
     click.echo(f"Wrote mzTab-M ({mztabm_format}) to {out_file}", err=True)
+
+
+# ---------------------------------------------------------------------------
+# convert2mgf command
+# ---------------------------------------------------------------------------
+
+
+@cli.command("convert2mgf")
+@click.argument("featuretable_id")
+@click.option(
+    "--out-file",
+    "-f",
+    required=True,
+    type=click.Path(dir_okay=False, writable=True),
+    help="Path to write the MGF file.",
+)
+@click.option(
+    "--polarity",
+    "-p",
+    type=click.Choice(["POSITIVE", "NEGATIVE"], case_sensitive=False),
+    default=None,
+    help=(
+        "Scan polarity.  When omitted, the polarity is inferred from the ion "
+        "notation of each feature (e.g. '[M+H]+' → Positive)."
+    ),
+)
+@click.pass_context
+def convert2mgf(
+    ctx: click.Context,
+    featuretable_id: str,
+    out_file: str,
+    polarity: Optional[str],
+) -> None:
+    """Convert MS/MS spectra to MGF format for GNPS submission.
+
+    FEATURETABLE_ID is the UUID of the feature table.  Only features that
+    have at least one MS/MS spectrum with peaks are written to the output
+    file; features without MS/MS data are silently skipped.
+    """
+    from .convert import build_mgf as _build_mgf
+
+    client = _make_client(ctx.obj["server"])
+    featuretable_api = metaPyScape.FeaturetableApi(client)
+
+    feature_table = _call(featuretable_api.retrieve_feature_table, featuretable_id)
+
+    msms_map: dict = {}
+    n_features = len(feature_table or [])
+    for i, feature in enumerate(feature_table or [], start=1):
+        if feature.id:
+            msms_info_list = _call(
+                featuretable_api.retrieve_feature_ms_ms_spectra, feature.id
+            )
+            msms_map[feature.id] = msms_info_list or []
+        if i % 100 == 0 or i == n_features:
+            click.echo(f"  fetched MS/MS for {i}/{n_features} features …", err=True)
+
+    content = _build_mgf(feature_table, msms_map, polarity=polarity)
+
+    with open(out_file, "w", encoding="utf-8") as fh:
+        fh.write(content)
+
+    n_written = content.count("BEGIN IONS")
+    click.echo(
+        f"Wrote MGF with {n_written} spectrum block(s) to {out_file}", err=True
+    )
+
+
+# ---------------------------------------------------------------------------
+# convert2mat command
+# ---------------------------------------------------------------------------
+
+
+@cli.command("convert2mat")
+@click.argument("featuretable_id")
+@click.option(
+    "--out-file",
+    "-f",
+    required=True,
+    type=click.Path(dir_okay=False, writable=True),
+    help="Path to write the SIRIUS .ms file.",
+)
+@click.option(
+    "--polarity",
+    "-p",
+    type=click.Choice(["POSITIVE", "NEGATIVE"], case_sensitive=False),
+    default=None,
+    help=(
+        "Scan polarity.  Used as a fallback charge-sign when the polarity "
+        "cannot be inferred from the ion notation."
+    ),
+)
+@click.pass_context
+def convert2mat(
+    ctx: click.Context,
+    featuretable_id: str,
+    out_file: str,
+    polarity: Optional[str],
+) -> None:
+    """Convert MS/MS and MS1 isotope clusters to SIRIUS .ms format.
+
+    FEATURETABLE_ID is the UUID of the feature table.  For each feature that
+    has at least one MS/MS spectrum, a compound block containing the MS1
+    isotope cluster (when available) and all MS2 spectra is written to the
+    output file.  Features without MS/MS data are silently skipped.
+    """
+    from .convert import build_mat as _build_mat
+
+    client = _make_client(ctx.obj["server"])
+    featuretable_api = metaPyScape.FeaturetableApi(client)
+
+    feature_table = _call(featuretable_api.retrieve_feature_table, featuretable_id)
+
+    msms_map: dict = {}
+    ms1_map: dict = {}
+    n_features = len(feature_table or [])
+    for i, feature in enumerate(feature_table or [], start=1):
+        if feature.id:
+            msms_info_list = _call(
+                featuretable_api.retrieve_feature_ms_ms_spectra, feature.id
+            )
+            msms_map[feature.id] = msms_info_list or []
+            ms1_info_list = _call(
+                featuretable_api.retrieve_feature_ion_ms_spectra, feature.id
+            )
+            ms1_map[feature.id] = ms1_info_list or []
+        if i % 100 == 0 or i == n_features:
+            click.echo(f"  fetched spectra for {i}/{n_features} features …", err=True)
+
+    content = _build_mat(feature_table, msms_map, ms1_map, polarity=polarity)
+
+    with open(out_file, "w", encoding="utf-8") as fh:
+        fh.write(content)
+
+    n_written = content.count(">compound ")
+    click.echo(
+        f"Wrote SIRIUS .ms with {n_written} compound block(s) to {out_file}", err=True
+    )
 
 
 # ---------------------------------------------------------------------------
