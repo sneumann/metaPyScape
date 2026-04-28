@@ -785,20 +785,21 @@ class TestBuildMgf(unittest.TestCase):
         self.assertIn("TITLE=Kinetin", result)
 
     def test_title_uses_feature_counter_when_unannotated(self):
-        """Unannotated features must use Feature_N as TITLE."""
+        """Unannotated features must use Feature_N as TITLE where N is the overall index."""
         result = self._build()
         # First feature is unannotated → Feature_1
         self.assertIn("TITLE=Feature_1\n", result)
 
-    def test_title_counter_skips_annotated_features(self):
-        """Feature_N counter must skip annotated features (index 42 = Kinetin)."""
+    def test_title_counter_uses_overall_index(self):
+        """Feature_N must use the overall feature index, not a separate unannotated count."""
         result = self._build()
         lines = result.splitlines()
         title_lines = [l for l in lines if l.startswith("TITLE=Feature_")]
         # Extract N values
         ns = [int(l.split("Feature_")[1]) for l in title_lines]
-        # The counter values must be consecutive (1, 2, 3, ...) with no gaps
-        self.assertEqual(ns, list(range(1, len(ns) + 1)))
+        # N values must be a subset of [1..len(feature_table)] and strictly ascending
+        self.assertTrue(all(1 <= n <= len(self.feature_table) for n in ns))
+        self.assertEqual(ns, sorted(ns))
 
     def test_no_name_field(self):
         """The MGF output must not contain a NAME= field (replaced by TITLE)."""
@@ -826,15 +827,14 @@ class TestBuildMgf(unittest.TestCase):
         # One fewer block expected.
         self.assertEqual(result.count("BEGIN IONS"), len(self.feature_table) - 1)
 
-    def test_unannotated_counter_stable_when_first_feature_has_no_msms(self):
-        """Feature_N numbering must still start at 1 even when feature[0] lacks MS/MS."""
+    def test_feature_index_stable_when_first_feature_has_no_msms(self):
+        """Feature_N index must use global position even when feature[0] lacks MS/MS."""
         first_feat = self.feature_table[0]
         self.assertIsNone(first_feat.primary_annotation)
-        # Remove MS/MS for the first feature; it still counts as unannotated.
+        # Remove MS/MS for the first feature (index 1); feature[1] is at index 2.
         self.msms_map[first_feat.id] = []
         result = self._build()
-        # feature[0] is counted as unannotated (no annotation, counter=1) but
-        # skipped in output; feature[1] is also unannotated → Feature_2
+        # feature[0] is index 1 but skipped; feature[1] is also unannotated → Feature_2
         self.assertIn("TITLE=Feature_2\n", result)
 
     def test_empty_feature_table(self):

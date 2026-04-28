@@ -469,18 +469,8 @@ def build_mgf(
     ion_mode = _ionmode_string(polarity)
     lines: List[str] = []
 
-    # Counter for unannotated features only, so Feature_N numbering is
-    # consistent regardless of which features happen to have annotations.
-    unannotated_counter = 0
-
     for feat_idx, feature in enumerate(feature_table or [], start=1):
         ann = feature.primary_annotation
-        has_annotation = ann is not None and (
-            getattr(ann, "name", None) or getattr(ann, "formula", None)
-        )
-
-        if not has_annotation:
-            unannotated_counter += 1
 
         msms_info_list = msms_map.get(feature.id) or []
         ion = _primary_ion(feature)
@@ -500,9 +490,9 @@ def build_mgf(
         lines.append("BEGIN IONS")
 
         # TITLE: use compound name when available, otherwise Feature_N where N
-        # counts only unannotated features so the numbering stays stable.
+        # is the overall feature index (counting all features, including annotated ones).
         compound_name = getattr(ann, "name", None) if ann else None
-        title = compound_name if compound_name else f"Feature_{unannotated_counter}"
+        title = compound_name if compound_name else f"Feature_{feat_idx}"
         lines.append(f"TITLE={title}")
 
         lines.append(f"SCANS={feat_idx}")
