@@ -1,5 +1,5 @@
 # coding: utf-8
-"""Unit tests for mtbsccli.convert.build_mztabm.
+"""Unit tests for mtbsccli.convert (build_mztabm, build_mgf, build_mat).
 
 These tests use synthetic MetaboScape model objects built from the JSON
 fixture files in test/fixtures/.  No live MetaboScape server is required.
@@ -607,6 +607,371 @@ class TestConvert2MztabmCli(unittest.TestCase):
             )
             self.assertEqual(result.exit_code, 0, result.output)
             self.assertTrue(os.path.exists(path))
+        finally:
+            if os.path.exists(path):
+                os.unlink(path)
+
+
+# ---------------------------------------------------------------------------
+# Helpers for build_mgf tests
+# ---------------------------------------------------------------------------
+
+
+def _make_signal(mz: float, intensity: float):
+    """Build a metaPyScape.Signal."""
+    import metaPyScape
+
+    s = metaPyScape.Signal()
+    s.mz = mz
+    s.intensity = intensity
+    s.width = 0.0
+    return s
+
+
+def _make_msms_spectrum(signals):
+    """Build a metaPyScape.MsMsSpectrum with the given Signal list."""
+    import metaPyScape
+
+    sp = metaPyScape.MsMsSpectrum()
+    sp.signals = signals
+    return sp
+
+
+def _make_ms_spectrum(signals, analysis_id=None, mean_measured_mz=None,
+                      rt_in_seconds=None, ccs=None):
+    """Build a metaPyScape.MsSpectrum."""
+    import metaPyScape
+
+    sp = metaPyScape.MsSpectrum()
+    sp.signals = signals
+    sp.analysis_id = analysis_id
+    sp.mean_measured_mz = mean_measured_mz
+    sp.rt_in_seconds = rt_in_seconds
+    sp.ccs = ccs
+    return sp
+
+
+def _make_msms_info(feature_id, feature_ion, spectra):
+    """Build a metaPyScape.FeatureIonMsMsSpectrumInfo."""
+    import metaPyScape
+
+    info = metaPyScape.FeatureIonMsMsSpectrumInfo()
+    info.feature_id = feature_id
+    info.feature_ion = feature_ion
+    info.spectra = spectra
+    return info
+
+
+def _make_ms1_info(feature_id, feature_ion, spectra):
+    """Build a metaPyScape.FeatureIonMsSpectrumInfo."""
+    import metaPyScape
+
+    info = metaPyScape.FeatureIonMsSpectrumInfo()
+    info.feature_id = feature_id
+    info.feature_ion = feature_ion
+    info.spectra = spectra
+    return info
+
+
+# ---------------------------------------------------------------------------
+# Tests for build_mgf
+# ---------------------------------------------------------------------------
+
+
+class TestBuildMgf(unittest.TestCase):
+    """Tests for mtbsccli.convert.build_mgf()."""
+
+    def setUp(self):
+        self.feature_table = _make_feature_table()
+
+        self.msms_map = {}
+        self.ms1_map = {}
+        for feat in self.feature_table:
+            ion = feat.feature_ions[0] if feat.feature_ions else None
+
+            ms2_signals = [_make_signal(100.0, 500.0), _make_signal(150.0, 1000.0)]
+            sp = _make_msms_spectrum(ms2_signals)
+            info = _make_msms_info(feat.id, ion, [sp])
+            self.msms_map[feat.id] = [info]
+
+            ms1_signals = [_make_signal(104.1, 10000.0), _make_signal(105.1, 1000.0)]
+            ms1_sp = _make_ms_spectrum(ms1_signals)
+            ms1_info = _make_ms1_info(feat.id, ion, [ms1_sp])
+            self.ms1_map[feat.id] = [ms1_info]
+
+    def _build(self, polarity=None):
+        from mtbsccli.convert import build_mgf
+
+        return build_mgf(
+            self.feature_table, self.msms_map, self.ms1_map, polarity=polarity
+        )
+
+    def test_returns_string(self):
+        result = self._build()
+        self.assertIsInstance(result, str)
+
+    def test_contains_begin_end_ions(self):
+        result = self._build()
+        self.assertIn("BEGIN IONS", result)
+        self.assertIn("END IONS", result)
+
+    def test_block_count_matches_features_with_msms(self):
+        """One BEGIN IONS block per feature that has MS/MS data."""
+        result = self._build()
+        self.assertEqual(result.count("BEGIN IONS"), len(self.feature_table))
+
+    def test_peaks_present(self):
+        result = self._build()
+        self.assertIn("100.0\t500.0", result)
+        self.assertIn("150.0\t1000.0", result)
+
+    def test_pepmass_contains_mz(self):
+        result = self._build()
+        # First feature ion mz: 104.10685559415053
+        self.assertIn("PEPMASS=104.10685559415053", result)
+
+    def test_pepmass_contains_intensity_and_charge_when_ms1_available(self):
+        """PEPMASS line must include precursor intensity and charge when MS1 is provided."""
+        result = self._build()
+        # ms1_map provides signals with intensities [10000.0, 1000.0]; max = 10000.0
+        # charge from [M+H]+ = 1
+        # PEPMASS=<mz> 10000.0 1
+        self.assertIn("10000.0 1", result)
+
+    def test_pepmass_no_intensity_when_no_ms1(self):
+        """When ms1_map is empty, PEPMASS should only contain mz."""
+        from mtbsccli.convert import build_mgf
+
+        result = build_mgf(self.feature_table, self.msms_map, {})
+        # With no MS1 data, PEPMASS should not include intensity or charge
+        # (the mz is still there)
+        self.assertIn("PEPMASS=104.10685559415053\n", result)
+
+    def test_rtinseconds_present(self):
+        result = self._build()
+        # First feature rt: 31.070858001708984
+        self.assertIn("RTINSECONDS=31.070858001708984", result)
+
+    def test_charge_field_present(self):
+        """'[M+H]+' ion notation must produce a CHARGE=1+ field."""
+        result = self._build()
+        self.assertIn("CHARGE=1+", result)
+
+    def test_ionmode_from_polarity_positive(self):
+        result = self._build(polarity="POSITIVE")
+        self.assertIn("IONMODE=Positive", result)
+
+    def test_ionmode_from_polarity_negative(self):
+        result = self._build(polarity="NEGATIVE")
+        self.assertIn("IONMODE=Negative", result)
+
+    def test_ionmode_absent_when_no_polarity(self):
+        """When polarity=None, IONMODE must not appear in the output."""
+        result = self._build(polarity=None)
+        self.assertNotIn("IONMODE=", result)
+
+    def test_adduct_present(self):
+        result = self._build()
+        self.assertIn("ADDUCT=[M+H]+", result)
+
+    def test_ccs_present_when_available(self):
+        result = self._build()
+        # First feature ion ccs: 161.7107391357422
+        self.assertIn("CCS=161.7107391357422", result)
+
+    def test_title_uses_compound_name_when_annotated(self):
+        """Annotated feature (Kinetin, index 42) must use compound name as TITLE."""
+        result = self._build()
+        self.assertIn("TITLE=Kinetin", result)
+
+    def test_title_uses_feature_counter_when_unannotated(self):
+        """Unannotated features must use Feature_N as TITLE where N is the overall index."""
+        result = self._build()
+        # First feature is unannotated → Feature_1
+        self.assertIn("TITLE=Feature_1\n", result)
+
+    def test_title_counter_uses_overall_index(self):
+        """Feature_N must use the overall feature index, not a separate unannotated count."""
+        result = self._build()
+        lines = result.splitlines()
+        title_lines = [l for l in lines if l.startswith("TITLE=Feature_")]
+        # Extract N values
+        ns = [int(l.split("Feature_")[1]) for l in title_lines]
+        # N values must be a subset of [1..len(feature_table)] and strictly ascending
+        self.assertTrue(all(1 <= n <= len(self.feature_table) for n in ns))
+        self.assertEqual(ns, sorted(ns))
+
+    def test_no_name_field(self):
+        """The MGF output must not contain a NAME= field (replaced by TITLE)."""
+        result = self._build()
+        for line in result.splitlines():
+            self.assertFalse(
+                line.startswith("NAME="),
+                f"Unexpected NAME= field found: {line!r}",
+            )
+
+    def test_annotation_formula_in_block(self):
+        result = self._build()
+        self.assertIn("FORMULA=C10H9N5O", result)
+
+    def test_feature_id_field(self):
+        result = self._build()
+        feat0_id = self.feature_table[0].id
+        self.assertIn(f"FEATURE_ID={feat0_id}", result)
+
+    def test_feature_without_msms_is_skipped(self):
+        """A feature with an empty spectra list must not appear in the output."""
+        first_id = self.feature_table[0].id
+        self.msms_map[first_id] = []
+        result = self._build()
+        # One fewer block expected.
+        self.assertEqual(result.count("BEGIN IONS"), len(self.feature_table) - 1)
+
+    def test_feature_index_stable_when_first_feature_has_no_msms(self):
+        """Feature_N index must use global position even when feature[0] lacks MS/MS."""
+        first_feat = self.feature_table[0]
+        self.assertIsNone(first_feat.primary_annotation)
+        # Remove MS/MS for the first feature (index 1); feature[1] is at index 2.
+        self.msms_map[first_feat.id] = []
+        result = self._build()
+        # feature[0] is index 1 but skipped; feature[1] is also unannotated → Feature_2
+        self.assertIn("TITLE=Feature_2\n", result)
+
+    def test_empty_feature_table(self):
+        from mtbsccli.convert import build_mgf
+
+        result = build_mgf([], {}, {})
+        self.assertEqual(result.strip(), "")
+
+    def test_no_msms_map_entries_produces_empty_output(self):
+        from mtbsccli.convert import build_mgf
+
+        result = build_mgf(self.feature_table, {}, {})
+        self.assertEqual(result.strip(), "")
+
+
+# ---------------------------------------------------------------------------
+# CLI integration tests for convert2mgf
+# ---------------------------------------------------------------------------
+
+
+class TestConvert2MgfCli(unittest.TestCase):
+    """Test the convert2mgf Click command with mocked API calls."""
+
+    def _run_cli(self, args, polarity_in_project=None):
+        from click.testing import CliRunner
+        from mtbsccli.cli import cli
+
+        feature_table = _make_feature_table()
+        project = _make_project()
+
+        # Give the mock project a fake experiment + feature_table so polarity lookup works.
+        import metaPyScape as _mps
+        ft_meta = _mps.FeatureTable()
+        ft_meta.id = "ft-0001-0000-0000-000000000001"
+        ft_meta.polarity = polarity_in_project
+        exp = _mps.Experiment()
+        exp.feature_tables = [ft_meta]
+        project.experiments = [exp]
+
+        def _mock_msms(feature_id):
+            feat = next((f for f in feature_table if f.id == feature_id), None)
+            if feat is None:
+                return []
+            ion = feat.feature_ions[0] if feat.feature_ions else None
+            signals = [_make_signal(100.0, 500.0), _make_signal(150.0, 1000.0)]
+            sp = _make_msms_spectrum(signals)
+            return [_make_msms_info(feature_id, ion, [sp])]
+
+        def _mock_ms1(feature_id):
+            feat = next((f for f in feature_table if f.id == feature_id), None)
+            if feat is None:
+                return []
+            ion = feat.feature_ions[0] if feat.feature_ions else None
+            signals = [_make_signal(104.1, 10000.0), _make_signal(105.1, 500.0)]
+            sp = _make_ms_spectrum(signals)
+            return [_make_ms1_info(feature_id, ion, [sp])]
+
+        with patch("metaPyScape.ProjectsApi") as MockProj, patch(
+            "metaPyScape.FeaturetableApi"
+        ) as MockFt, patch("mtbsccli.cli._make_client") as MockClient:
+            MockClient.return_value = MagicMock()
+            mock_proj_instance = MagicMock()
+            mock_proj_instance.retrieve_project.return_value = project
+            MockProj.return_value = mock_proj_instance
+
+            mock_ft_instance = MagicMock()
+            mock_ft_instance.retrieve_feature_table.return_value = feature_table
+            mock_ft_instance.retrieve_feature_ms_ms_spectra.side_effect = _mock_msms
+            mock_ft_instance.retrieve_feature_ion_ms_spectra.side_effect = _mock_ms1
+            MockFt.return_value = mock_ft_instance
+
+            runner = CliRunner()
+            result = runner.invoke(cli, args, catch_exceptions=False)
+            return result
+
+    def test_creates_mgf_file(self):
+        with tempfile.NamedTemporaryFile(suffix=".mgf", delete=False) as fh:
+            path = fh.name
+        os.unlink(path)
+        try:
+            result = self._run_cli(
+                [
+                    "convert2mgf",
+                    "proj-0001-0000-0000-000000000001",
+                    "ft-0001-0000-0000-000000000001",
+                    "-f", path,
+                ]
+            )
+            self.assertEqual(result.exit_code, 0, result.output)
+            self.assertTrue(os.path.exists(path))
+            content = open(path).read()
+            self.assertIn("BEGIN IONS", content)
+            self.assertIn("END IONS", content)
+        finally:
+            if os.path.exists(path):
+                os.unlink(path)
+
+    def test_ionmode_from_featuretable_polarity(self):
+        """IONMODE in output must come from the featuretable attribute, not CLI flag."""
+        with tempfile.NamedTemporaryFile(suffix=".mgf", delete=False) as fh:
+            path = fh.name
+        os.unlink(path)
+        try:
+            result = self._run_cli(
+                [
+                    "convert2mgf",
+                    "proj-0001-0000-0000-000000000001",
+                    "ft-0001-0000-0000-000000000001",
+                    "-f", path,
+                ],
+                polarity_in_project="POSITIVE",
+            )
+            self.assertEqual(result.exit_code, 0, result.output)
+            content = open(path).read()
+            self.assertIn("IONMODE=Positive", content)
+        finally:
+            if os.path.exists(path):
+                os.unlink(path)
+
+    def test_ms1_data_included_in_pepmass(self):
+        """PEPMASS line must include MS1 precursor intensity when available."""
+        with tempfile.NamedTemporaryFile(suffix=".mgf", delete=False) as fh:
+            path = fh.name
+        os.unlink(path)
+        try:
+            result = self._run_cli(
+                [
+                    "convert2mgf",
+                    "proj-0001-0000-0000-000000000001",
+                    "ft-0001-0000-0000-000000000001",
+                    "-f", path,
+                ]
+            )
+            self.assertEqual(result.exit_code, 0, result.output)
+            content = open(path).read()
+            # Precursor intensity 10000.0 and charge 1 must appear on PEPMASS line
+            self.assertIn("10000.0 1", content)
         finally:
             if os.path.exists(path):
                 os.unlink(path)
