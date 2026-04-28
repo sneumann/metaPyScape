@@ -1,5 +1,5 @@
 # coding: utf-8
-"""Conversion of MetaboScape data to mzTab-M, MGF, and SIRIUS .ms formats."""
+"""Conversion of MetaboScape data to mzTab-M and MGF formats."""
 
 from __future__ import annotations
 
@@ -416,6 +416,7 @@ def build_mztabm(
 def build_mgf(
     feature_table: list,
     msms_map: Dict[str, list],
+    ms1_map: Dict[str, list],
     polarity: Optional[str] = None,
 ) -> str:
     """Build an MGF string suitable for GNPS submission.
@@ -432,20 +433,55 @@ def build_mgf(
         Mapping from feature ID to the list of
         ``FeatureIonMsMsSpectrumInfo`` objects returned by
         ``FeaturetableApi.retrieve_feature_ms_ms_spectra()``.
+    ms1_map:
+        Mapping from feature ID to the list of
+        ``FeatureIonMsSpectrumInfo`` objects returned by
+        ``FeaturetableApi.retrieve_feature_ion_ms_spectra()``.
+        Used to look up the precursor intensity for the ``PEPMASS`` line.
     polarity:
-        Scan polarity: ``"POSITIVE"``, ``"NEGATIVE"``, or ``None``.
-        When provided (or inferable from the ion notation) the ``IONMODE``
-        field is included in each spectrum block.
+        Scan polarity from the ``FeatureTable`` metadata attribute:
+        ``"POSITIVE"``, ``"NEGATIVE"``, or ``None``.  When provided, the
+        ``IONMODE`` field is included in each spectrum block.
 
     Returns
     -------
     str
         MGF-formatted text ready to be written to a ``.mgf`` file.
+
+    Notes
+    -----
+    The following fields in the produced MGF are non-standard extensions and
+    may not be recognised by all tools, but carry useful MetaboScape metadata:
+
+    ``ADDUCT``
+        Ion notation (e.g. ``[M+H]+``).
+    ``CCS``
+        Ion mobility collision cross-section in Å².
+    ``FEATURE_ID``
+        MetaboScape internal feature UUID.
+    ``FORMULA``
+        Molecular formula from the primary annotation.
+    ``IONMODE``
+        Scan polarity (``Positive`` or ``Negative``).
+    ``MSLEVEL``
+        Fixed value ``2``.
     """
-    global_ion_mode = _ionmode_string(polarity)
+    ion_mode = _ionmode_string(polarity)
     lines: List[str] = []
 
+    # Counter for unannotated features only, so Feature_N numbering is
+    # consistent regardless of which features happen to have annotations.
+    unannotated_counter = 0
+
     for feat_idx, feature in enumerate(feature_table or [], start=1):
+        ann = feature.primary_annotation
+        has_annotation = ann is not None and (
+            getattr(ann, "name", None) or getattr(ann, "formula", None)
+        )
+
+        if not has_annotation:
+            unannotated_counter += 1
+
         msms_info_list = msms_map.get(feature.id) or []
         ion = _primary_ion(feature)
         msms_info = _find_msms_info_for_ion(msms_info_list, ion)
@@ -460,21 +496,13 @@ def build_mgf(
         # Prefer the ion stored inside FeatureIonMsMsSpectrumInfo as it may
         # carry more complete information than the feature's own ion list.
         active_ion = getattr(msms_info, "feature_ion", None) or ion
-        ann = feature.primary_annotation
-
-        # Infer IONMODE from ion notation when not supplied globally.
-        ion_mode = global_ion_mode
-        if ion_mode is None and active_ion is not None:
-            charge = _parse_charge(getattr(active_ion, "ion_notation", None))
-            if charge is not None:
-                ion_mode = "Positive" if charge > 0 else "Negative"
 
         lines.append("BEGIN IONS")
 
-        compound_name = ann.name if ann else None
-        title = f"Feature_{feat_idx}"
-        if compound_name:
-            title += f" {compound_name}"
+        # TITLE: use compound name when available, otherwise Feature_N where N
+        # counts only unannotated features so the numbering stays stable.
+        compound_name = getattr(ann, "name", None) if ann else None
+        title = compound_name if compound_name else f"Feature_{unannotated_counter}"
         lines.append(f"TITLE={title}")
 
         lines.append(f"SCANS={feat_idx}")
@@ -484,16 +512,42 @@ def build_mgf(
             lines.append(f"IONMODE={ion_mode}")
 
         precursor_mz = getattr(active_ion, "mz", None) if active_ion else None
-        if precursor_mz is not None:
-            lines.append(f"PEPMASS={precursor_mz}")
-        elif feature.mass is not None:
-            lines.append(f"PEPMASS={feature.mass}")
+        if precursor_mz is None:
+            precursor_mz = feature.mass
+
+        # Look up precursor intensity from the MS1 isotope cluster.
+        precursor_intensity: Optional[float] = None
+        active_ion_id = getattr(active_ion, "id", None) if active_ion else None
+        for ms1_info in (ms1_map.get(feature.id) or []):
+            ms1_ion = getattr(ms1_info, "feature_ion", None)
+            ms1_ion_id = getattr(ms1_ion, "id", None) if ms1_ion else None
+            if active_ion_id and ms1_ion_id and ms1_ion_id != active_ion_id:
+                continue
+            for ms1_sp in ms1_info.spectra or []:
+                signals = ms1_sp.signals or []
+                if signals:
+                    precursor_intensity = max(
+                        (s.intensity for s in signals if s.intensity is not None),
+                        default=None,
+                    )
+                    break
+            if precursor_intensity is not None:
+                break
 
         charge = (
             _parse_charge(getattr(active_ion, "ion_notation", None))
             if active_ion
             else None
         )
+
+        if precursor_mz is not None:
+            pepmass_parts = [str(precursor_mz)]
+            if precursor_intensity is not None:
+                pepmass_parts.append(str(precursor_intensity))
+                if charge is not None:
+                    pepmass_parts.append(str(charge))
+            lines.append(f"PEPMASS={' '.join(pepmass_parts)}")
+
         if charge is not None:
             sign = "+" if charge >= 0 else "-"
             lines.append(f"CHARGE={abs(charge)}{sign}")
@@ -509,15 +563,8 @@ def build_mgf(
         if ccs is not None:
             lines.append(f"CCS={ccs}")
 
-        if ann:
-            if ann.name:
-                lines.append(f"NAME={ann.name}")
-            if ann.formula:
-                lines.append(f"FORMULA={ann.formula}")
-            if ann.structure_inchi:
-                lines.append(f"INCHI={ann.structure_inchi}")
-            if ann.structure_smiles:
-                lines.append(f"SMILES={ann.structure_smiles}")
+        if ann and getattr(ann, "formula", None):
+            lines.append(f"FORMULA={ann.formula}")
 
         if feature.id:
             lines.append(f"FEATURE_ID={feature.id}")
@@ -526,129 +573,6 @@ def build_mgf(
             lines.append(f"{signal.mz}\t{signal.intensity}")
 
         lines.append("END IONS")
-        lines.append("")
-
-    return "\n".join(lines)
-
-
-def build_mat(
-    feature_table: list,
-    msms_map: Dict[str, list],
-    ms1_map: Dict[str, list],
-    polarity: Optional[str] = None,
-) -> str:
-    """Build a SIRIUS ``.ms`` format string suitable for SIRIUS submission.
-
-    One compound block is written per feature that has at least one MS/MS
-    spectrum with peaks.  For each such feature the MS1 isotope cluster (from
-    *ms1_map*) is included when available.  Features without MS/MS data are
-    silently skipped.
-
-    Parameters
-    ----------
-    feature_table:
-        List of Feature objects from ``FeaturetableApi.retrieve_feature_table()``.
-    msms_map:
-        Mapping from feature ID to the list of
-        ``FeatureIonMsMsSpectrumInfo`` objects returned by
-        ``FeaturetableApi.retrieve_feature_ms_ms_spectra()``.
-    ms1_map:
-        Mapping from feature ID to the list of
-        ``FeatureIonMsSpectrumInfo`` objects returned by
-        ``FeaturetableApi.retrieve_feature_ion_ms_spectra()``.
-    polarity:
-        Scan polarity: ``"POSITIVE"``, ``"NEGATIVE"``, or ``None``.
-        Used as a fallback when the charge cannot be parsed from the ion
-        notation.
-
-    Returns
-    -------
-    str
-        SIRIUS ``.ms`` format text ready to be written to a ``.ms`` file.
-    """
-    lines: List[str] = []
-
-    for feat_idx, feature in enumerate(feature_table or [], start=1):
-        msms_info_list = msms_map.get(feature.id) or []
-        ms1_info_list = ms1_map.get(feature.id) or []
-
-        ion = _primary_ion(feature)
-        msms_info = _find_msms_info_for_ion(msms_info_list, ion)
-
-        if not msms_info or not msms_info.spectra:
-            continue
-
-        active_ion = getattr(msms_info, "feature_ion", None) or ion
-        ann = feature.primary_annotation
-
-        compound_name = ann.name if ann else None
-        compound_id = compound_name or feature.id or f"Feature_{feat_idx}"
-        lines.append(f">compound {compound_id}")
-
-        if feature.mass is not None:
-            lines.append(f">parentmass {feature.mass}")
-
-        charge = (
-            _parse_charge(getattr(active_ion, "ion_notation", None))
-            if active_ion
-            else None
-        )
-        if charge is None:
-            if polarity and polarity.upper() in ("POSITIVE", "POS"):
-                charge = 1
-            elif polarity and polarity.upper() in ("NEGATIVE", "NEG"):
-                charge = -1
-        if charge is not None:
-            lines.append(f">charge {charge}")
-
-        if feature.rt_in_seconds is not None:
-            lines.append(f">rt {feature.rt_in_seconds}")
-
-        ion_notation = getattr(active_ion, "ion_notation", None) if active_ion else None
-        if ion_notation:
-            lines.append(f">ionization {ion_notation}")
-
-        ccs = getattr(active_ion, "ccs", None) if active_ion else None
-        if ccs is not None:
-            lines.append(f">ccs {ccs}")
-
-        if ann:
-            if ann.formula:
-                lines.append(f">formula {ann.formula}")
-            if ann.structure_inchi:
-                lines.append(f">inchi {ann.structure_inchi}")
-            if ann.structure_smiles:
-                lines.append(f">smiles {ann.structure_smiles}")
-
-        # MS1 isotope cluster – search for the ion matching *active_ion*.
-        active_ion_id = getattr(active_ion, "id", None) if active_ion else None
-        ms1_written = False
-        for ms1_info in ms1_info_list:
-            ms1_ion = getattr(ms1_info, "feature_ion", None)
-            ms1_ion_id = getattr(ms1_ion, "id", None) if ms1_ion else None
-            if active_ion_id and ms1_ion_id and ms1_ion_id != active_ion_id:
-                continue
-            for ms1_spectrum in ms1_info.spectra or []:
-                if not ms1_spectrum.signals:
-                    continue
-                lines.append("")
-                lines.append(">ms1")
-                for signal in ms1_spectrum.signals:
-                    lines.append(f"{signal.mz} {signal.intensity}")
-                ms1_written = True
-                break
-            if ms1_written:
-                break
-
-        # MS2 spectra – include all spectra available for the ion.
-        for ms2_spectrum in msms_info.spectra or []:
-            if not ms2_spectrum.signals:
-                continue
-            lines.append("")
-            lines.append(">ms2")
-            for signal in ms2_spectrum.signals:
-                lines.append(f"{signal.mz} {signal.intensity}")
-
         lines.append("")
 
     return "\n".join(lines)
