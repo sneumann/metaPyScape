@@ -320,6 +320,17 @@ class TestBuildMztabm(unittest.TestCase):
         self.assertEqual(os_refs & ns_refs, set())
         self.assertEqual(os_refs | ns_refs, set(range(1, n_assays + 1)))
 
+    def test_study_variable_average_and_variation_functions(self):
+        """Each study_variable must define mean and variation coefficient functions."""
+        result = self._build()
+        for sv in result.metadata.study_variable:
+            self.assertIsNotNone(sv.average_function)
+            self.assertEqual(sv.average_function.cv_accession, "MS:1002962")
+            self.assertEqual(sv.average_function.name, "mean")
+            self.assertIsNotNone(sv.variation_function)
+            self.assertEqual(sv.variation_function.cv_accession, "MS:1002963")
+            self.assertEqual(sv.variation_function.name, "variation coefficient")
+
     def test_sample_entries_in_metadata(self):
         """MTD must not contain any mzTab Sample entries."""
         result = self._build()
@@ -439,6 +450,50 @@ class TestBuildMztabm(unittest.TestCase):
             self.assertIsNotNone(sml.abundance_variation_study_variable)
             self.assertEqual(len(sml.abundance_variation_study_variable), n_sv)
 
+    def test_sml_abundance_study_variable_values_are_means(self):
+        """abundance_study_variable must be the assay mean per study variable."""
+        result = self._build()
+        svs = result.metadata.study_variable
+        for sml in result.small_molecule_summary:
+            for idx, sv in enumerate(svs):
+                values = []
+                for assay_ref in sv.assay_refs:
+                    val = sml.abundance_assay[assay_ref - 1]
+                    if val is not None:
+                        values.append(val)
+                expected = sum(values) / len(values) if values else None
+                got = sml.abundance_study_variable[idx]
+                if expected is None:
+                    self.assertIsNone(got)
+                else:
+                    self.assertAlmostEqual(got, expected, places=9)
+
+    def test_sml_variation_study_variable_values_are_coefficient(self):
+        """abundance_variation_study_variable must be std/mean per study variable."""
+        result = self._build()
+        svs = result.metadata.study_variable
+        for sml in result.small_molecule_summary:
+            for idx, sv in enumerate(svs):
+                values = []
+                for assay_ref in sv.assay_refs:
+                    val = sml.abundance_assay[assay_ref - 1]
+                    if val is not None:
+                        values.append(val)
+                if not values:
+                    expected = None
+                else:
+                    mean = sum(values) / len(values)
+                    if mean == 0:
+                        expected = None
+                    else:
+                        variance = sum((v - mean) ** 2 for v in values) / len(values)
+                        expected = (variance ** 0.5) / mean
+                got = sml.abundance_variation_study_variable[idx]
+                if expected is None:
+                    self.assertIsNone(got)
+                else:
+                    self.assertAlmostEqual(got, expected, places=9)
+
     def test_sml_abundance_assay_length(self):
         """Each SML row must have one abundance value per assay."""
         result = self._build()
@@ -476,6 +531,50 @@ class TestBuildMztabm(unittest.TestCase):
         result = self._build()
         smf = result.small_molecule_feature[0]
         self.assertAlmostEqual(smf.exp_mass_to_charge, 104.10685559415053, places=3)
+
+    def test_smf_opt_feature_id_column_present(self):
+        """SMF rows must include opt_featureId with the MetaboScape feature id."""
+        result = self._build()
+        smf0 = result.small_molecule_feature[0]
+        self.assertIsNotNone(smf0.opt)
+        by_identifier = {item.identifier: item.value for item in smf0.opt}
+        self.assertIn("featureId", by_identifier)
+        self.assertEqual(by_identifier["featureId"], self.feature_table[0].id)
+
+    def test_smf_opt_ccs_column_present_when_available(self):
+        """SMF header should include opt_CCS when any feature ion has CCS."""
+        import mztab_m_io as mztabm
+
+        result = self._build()
+        with tempfile.NamedTemporaryFile(suffix=".mztab", delete=False) as fh:
+            path = fh.name
+        try:
+            mztabm.write(result, path, format="tsv")
+            with open(path) as fh:
+                sfh = [line for line in fh if line.startswith("SFH\t")][0]
+            self.assertIn("opt_featureId", sfh)
+            self.assertIn("opt_CCS", sfh)
+        finally:
+            os.unlink(path)
+
+    def test_smf_opt_ccs_column_omitted_when_unavailable(self):
+        """SMF header should omit opt_CCS when no feature ion has CCS."""
+        import mztab_m_io as mztabm
+
+        for feat in self.feature_table:
+            for ion in feat.feature_ions:
+                ion.ccs = None
+        result = self._build()
+        with tempfile.NamedTemporaryFile(suffix=".mztab", delete=False) as fh:
+            path = fh.name
+        try:
+            mztabm.write(result, path, format="tsv")
+            with open(path) as fh:
+                sfh = [line for line in fh if line.startswith("SFH\t")][0]
+            self.assertIn("opt_featureId", sfh)
+            self.assertNotIn("opt_CCS", sfh)
+        finally:
+            os.unlink(path)
 
     def test_no_feature_ions(self):
         """Feature with empty feature_ions list must not raise."""
