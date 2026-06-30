@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import getpass
 import importlib.metadata
+import json
 import os
 import sys
 from typing import Optional
@@ -126,6 +127,26 @@ def _call(fn, *args, **kwargs):
         _handle_api_error(exc)
     except Exception as exc:  # noqa: BLE001
         _handle_connection_error(exc)
+
+
+def _retrieve_project_with_extended_metadata(
+    projects_api: metaPyScape.ProjectsApi, project_id: str
+):
+    """Retrieve a project as raw JSON when possible to preserve extra metadata fields."""
+    response = _call(projects_api.retrieve_project, project_id, _preload_content=False)
+
+    # _preload_content=False returns an HTTP response carrying raw response bytes.
+    if hasattr(response, "data"):
+        data = response.data
+        if isinstance(data, bytes):
+            data = data.decode("utf-8")
+        try:
+            return json.loads(data)
+        except (TypeError, json.JSONDecodeError):
+            pass
+
+    # Fallback for mocked/test responses or non-raw API clients.
+    return response
 
 
 # ---------------------------------------------------------------------------
@@ -269,7 +290,9 @@ def get_projects(ctx: click.Context) -> None:
 def get_project(ctx: click.Context, project_id: str) -> None:
     """Get a project by PROJECT_ID."""
     client = _make_client(ctx.obj["server"])
-    result = _call(metaPyScape.ProjectsApi(client).retrieve_project, project_id)
+    result = _retrieve_project_with_extended_metadata(
+        metaPyScape.ProjectsApi(client), project_id
+    )
     out.format_output(result, ctx.obj["output"])
 
 
