@@ -30,6 +30,8 @@ def _make_project():
     ft.id = "2c32680e-debc-4f77-8970-78cf547d9875"
     ft.name = "TestTable-pos"
     ft.polarity = "POSITIVE"
+    ft.last_change_date = 1740738554486
+    ft.number_of_features = 1234
     exp.feature_tables = [ft]
 
     project.experiments = [exp]
@@ -116,6 +118,8 @@ class TestFormatOutputTable(unittest.TestCase):
         output = self._capture_table(project)
         self.assertIn("2c32680e-debc-4f77-8970-78cf547d9875", output)
         self.assertIn("POSITIVE", output)
+        self.assertIn("1740738554486", output)
+        self.assertIn("1234", output)
 
     def test_list_of_projects_as_table(self):
         """A list of projects should render with column headers."""
@@ -192,6 +196,14 @@ class TestGetCommandOutputFlag(unittest.TestCase):
         """JSON output must start with '{', no extra lines before it."""
         r = self._invoke(["-o", "json", "get", "project", "87d912bb"])
         self.assertTrue(r.output.lstrip().startswith("{"), repr(r.output[:60]))
+
+    def test_get_project_includes_openapi_featuretable_metadata(self):
+        r = self._invoke(["-o", "json", "get", "project", "87d912bb"])
+        self.assertEqual(r.exit_code, 0)
+        parsed = json.loads(r.output)
+        ft = parsed["experiments"][0]["feature_tables"][0]
+        self.assertEqual(ft["last_change_date"], 1740738554486)
+        self.assertEqual(ft["number_of_features"], 1234)
 
 
 if __name__ == "__main__":

@@ -31,22 +31,28 @@ class FeatureTable(object):
         'id': 'str',
         'name': 'str',
         'polarity': 'str',
-        'processing_workflow': 'str'
+        'processing_workflow': 'str',
+        'last_change_date': 'int',
+        'number_of_features': 'int'
     }
 
     attribute_map = {
         'id': 'id',
         'name': 'name',
         'polarity': 'polarity',
-        'processing_workflow': 'processingWorkflow'
+        'processing_workflow': 'processingWorkflow',
+        'last_change_date': 'lastChangeDate',
+        'number_of_features': 'numberOfFeatures'
     }
 
-    def __init__(self, id=None, name=None, polarity=None, processing_workflow=None):  # noqa: E501
+    def __init__(self, id=None, name=None, polarity=None, processing_workflow=None, last_change_date=None, number_of_features=None):  # noqa: E501
         """FeatureTable - a model defined in Swagger"""  # noqa: E501
         self._id = None
         self._name = None
         self._polarity = None
         self._processing_workflow = None
+        self._last_change_date = None
+        self._number_of_features = None
         self.discriminator = None
         if id is not None:
             self.id = id
@@ -56,6 +62,10 @@ class FeatureTable(object):
             self.polarity = polarity
         if processing_workflow is not None:
             self.processing_workflow = processing_workflow
+        if last_change_date is not None:
+            self.last_change_date = last_change_date
+        if number_of_features is not None:
+            self.number_of_features = number_of_features
 
     @property
     def id(self):
@@ -140,6 +150,48 @@ class FeatureTable(object):
         """
 
         self._processing_workflow = processing_workflow
+
+    @property
+    def last_change_date(self):
+        """Gets the last_change_date of this FeatureTable.  # noqa: E501
+
+
+        :return: The last_change_date of this FeatureTable.  # noqa: E501
+        :rtype: int
+        """
+        return self._last_change_date
+
+    @last_change_date.setter
+    def last_change_date(self, last_change_date):
+        """Sets the last_change_date of this FeatureTable.
+
+
+        :param last_change_date: The last_change_date of this FeatureTable.  # noqa: E501
+        :type: int
+        """
+
+        self._last_change_date = last_change_date
+
+    @property
+    def number_of_features(self):
+        """Gets the number_of_features of this FeatureTable.  # noqa: E501
+
+
+        :return: The number_of_features of this FeatureTable.  # noqa: E501
+        :rtype: int
+        """
+        return self._number_of_features
+
+    @number_of_features.setter
+    def number_of_features(self, number_of_features):
+        """Sets the number_of_features of this FeatureTable.
+
+
+        :param number_of_features: The number_of_features of this FeatureTable.  # noqa: E501
+        :type: int
+        """
+
+        self._number_of_features = number_of_features
 
     def to_dict(self):
         """Returns the model properties as a dict"""
