@@ -69,7 +69,7 @@ export MTBSC_SERVER=http://192.168.1.10/cxf/metaboscape
 ```sh
 # --- Projects ---
 mtbsccli get projects                          # List all projects
-mtbsccli get project <projectId>               # Get project details incl. featuretable metadata (e.g. last change, feature count when available)
+mtbsccli get project <projectId>               # Get project details
 mtbsccli get project-info <projectId>          # Get project task/workflow info
 
 # --- Feature Tables ---
@@ -244,3 +244,4 @@ Class | Method | HTTP request | Description
 
 ## Author
 Steffen Neumann
+

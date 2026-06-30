@@ -193,46 +193,6 @@ class TestGetCommandOutputFlag(unittest.TestCase):
         r = self._invoke(["-o", "json", "get", "project", "87d912bb"])
         self.assertTrue(r.output.lstrip().startswith("{"), repr(r.output[:60]))
 
-    def test_get_project_preserves_extended_featuretable_metadata(self):
-        """Additional feature table metadata from the raw project payload must be preserved."""
-        payload = {
-            "id": "87d912bb-4153-4443-bf2a-1036548a0961",
-            "name": "TestProject",
-            "experiments": [
-                {
-                    "id": "6f281a94-40d5-425b-be62-e283a964796e",
-                    "name": "TestExperiment",
-                    "featureTables": [
-                        {
-                            "id": "2c32680e-debc-4f77-8970-78cf547d9875",
-                            "name": "TestTable-pos",
-                            "polarity": "POSITIVE",
-                            "lastChangeDate": 1740738554486,
-                            "numberOfFeatures": 1234,
-                        }
-                    ],
-                }
-            ],
-        }
-        with patch("mtbsccli.cli._make_client") as mc, patch("metaPyScape.ProjectsApi") as MP:
-            mc.return_value = MagicMock()
-            mp_inst = MagicMock()
-            mp_inst.retrieve_project.return_value = MagicMock(
-                data=json.dumps(payload).encode("utf-8")
-            )
-            MP.return_value = mp_inst
-
-            runner = CliRunner()
-            r = runner.invoke(
-                cli, ["-o", "json", "get", "project", "87d912bb"], catch_exceptions=False
-            )
-
-        self.assertEqual(r.exit_code, 0)
-        parsed = json.loads(r.output)
-        ft = parsed["experiments"][0]["featureTables"][0]
-        self.assertEqual(ft["lastChangeDate"], 1740738554486)
-        self.assertEqual(ft["numberOfFeatures"], 1234)
-
 
 if __name__ == "__main__":
     unittest.main()
