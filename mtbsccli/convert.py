@@ -13,6 +13,7 @@ from mztab_m_io.model.common import (
     Assay,
     Database,
     MsRun,
+    OptColumnMapping,
     Parameter,
     Software,
     StudyVariable,
@@ -126,6 +127,25 @@ def _find_msms_info_for_ion(msms_info_list: list, ion) -> Optional[object]:
     return None
 
 
+def _mean(values: List[float]) -> Optional[float]:
+    """Return arithmetic mean for a non-empty list of numbers."""
+    if not values:
+        return None
+    return sum(values) / len(values)
+
+
+def _variation_coefficient(values: List[float]) -> Optional[float]:
+    """Return coefficient of variation for a non-empty list of numbers."""
+    if not values:
+        return None
+    mean_val = _mean(values)
+    if mean_val in (None, 0):
+        return None
+    variance = sum((v - mean_val) ** 2 for v in values) / len(values)
+    std_dev = variance ** 0.5
+    return std_dev / mean_val
+
+
 def build_mztabm(
     project: metaPyScape.Project,
     project_info: metaPyScape.ProjectInfo,
@@ -231,6 +251,16 @@ def build_mztabm(
                 name=sv_value,
                 description=sv_value,
                 assay_refs=sv_assay_ids,
+                average_function=Parameter(
+                    cv_label="MS",
+                    cv_accession="MS:1002962",
+                    name="mean",
+                ),
+                variation_function=Parameter(
+                    cv_label="MS",
+                    cv_accession="MS:1002963",
+                    name="variation coefficient",
+                ),
             )
             for sv_idx, (sv_value, sv_assay_ids) in enumerate(
                 value_to_assay_ids.items(), start=1
@@ -243,6 +273,16 @@ def build_mztabm(
                 name="undefined",
                 description="undefined",
                 assay_refs=list(range(1, num_assays + 1)),
+                average_function=Parameter(
+                    cv_label="MS",
+                    cv_accession="MS:1002962",
+                    name="mean",
+                ),
+                variation_function=Parameter(
+                    cv_label="MS",
+                    cv_accession="MS:1002963",
+                    name="variation coefficient",
+                ),
                 factors=[
                     Parameter(
                         cv_label="MS", cv_accession="MS:1001808", name="undefined"
@@ -345,6 +385,10 @@ def build_mztabm(
 
     sml_list: List[SmallMoleculeSummary] = []
     smf_list: List[SmallMoleculeFeature] = []
+    include_opt_ccs = any(
+        getattr(_primary_ion(feature), "ccs", None) is not None
+        for feature in (feature_table or [])
+    )
 
     for sml_idx, feature in enumerate(feature_table or [], start=1):
         ann = feature.primary_annotation
@@ -377,6 +421,20 @@ def build_mztabm(
         # reliability: "3" (putatively characterized) when the exact mass is
         # known (i.e. a chemical formula is available), "4" (unknown) otherwise.
         reliability = "3" if chemical_formula else "4"
+        abundance_by_sv: List[Optional[float]] = []
+        variation_by_sv: List[Optional[float]] = []
+        for sv in study_variables:
+            sv_values: List[float] = []
+            for assay_ref in sv.assay_refs or []:
+                assay_idx = assay_ref - 1
+                if assay_idx < 0 or assay_idx >= len(abundance):
+                    continue
+                assay_value = abundance[assay_idx]
+                if assay_value is None:
+                    continue
+                sv_values.append(assay_value)
+            abundance_by_sv.append(_mean(sv_values))
+            variation_by_sv.append(_variation_coefficient(sv_values))
 
         sml = SmallMoleculeSummary(
             sml_id=sml_idx,
@@ -390,10 +448,19 @@ def build_mztabm(
             adduct_ions=_wrap(ion.ion_notation if ion else None),
             reliability=reliability,
             abundance_assay=abundance,
-            abundance_study_variable=[None] * num_study_variables,
-            abundance_variation_study_variable=[None] * num_study_variables,
+            abundance_study_variable=abundance_by_sv,
+            abundance_variation_study_variable=variation_by_sv,
         )
         sml_list.append(sml)
+
+        smf_opt = [OptColumnMapping(identifier="featureId", value=feature.id)]
+        if include_opt_ccs:
+            smf_opt.append(
+                OptColumnMapping(
+                    identifier="CCS",
+                    value=None if ion is None or ion.ccs is None else str(ion.ccs),
+                )
+            )
 
         smf = SmallMoleculeFeature(
             smf_id=sml_idx,
@@ -403,6 +470,7 @@ def build_mztabm(
             charge=1,
             retention_time_in_seconds=feature.rt_in_seconds,
             abundance_assay=abundance,
+            opt=smf_opt,
         )
         smf_list.append(smf)
 
