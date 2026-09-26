@@ -611,15 +611,7 @@ def build_mztabm(
             for assay_idx, _aid in enumerate(analysis_ids, start=1)
             if assay_idx - 1 < len(abundance) and abundance[assay_idx - 1] is not None
         ]
-        if not evidence_ms_run_refs:
-            if analysis_ids:
-                evidence_ms_run_refs = [SpectraReference(ms_run=1)]
-            else:
-                evidence_ms_run_refs = [SpectraReference(ms_run=1)]
-
-        theoretical_mass_to_charge = (
-            feature.mass if chemical_formula and feature.mass is not None else None
-        )
+        theoretical_mass_to_charge = feature.mass if feature.mass is not None else None
         sme_list.append(
             SmallMoleculeEvidence(
                 sme_id=sml_idx,
@@ -633,7 +625,7 @@ def build_mztabm(
                 exp_mass_to_charge=(ion.mz if ion and ion.mz is not None else feature.mass),
                 charge=abs(_parse_charge(ion.ion_notation if ion else None) or 1),
                 theoretical_mass_to_charge=theoretical_mass_to_charge,
-                spectra_references=evidence_ms_run_refs,
+                spectra_references=evidence_ms_run_refs or None,
                 identification_method=Parameter(
                     cv_label="MS",
                     cv_accession="MS:1000799",
