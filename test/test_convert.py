@@ -63,6 +63,16 @@ def _make_project_info():
     info.project_id = data["project_id"]
     info.name = data["name"]
     info.description = data["description"]
+    info.attribute = []
+    for attr_data in data.get("attribute", []):
+        attr_type = metaPyScape.SampleAttributeType()
+        attr_type.name = attr_data.get("name")
+        attr_type.detailed_attribute_options = []
+        for option_data in attr_data.get("detailedAttributeOptions", []):
+            option = metaPyScape.SampleAttributeOption()
+            option.name = option_data.get("name")
+            attr_type.detailed_attribute_options.append(option)
+        info.attribute.append(attr_type)
     return info
 
 
@@ -76,6 +86,7 @@ def _make_annotation(ann_data: dict):
     ann.id = ann_data.get("id")
     ann.name = ann_data.get("name")
     ann.formula = ann_data.get("formula")
+    ann.tool = ann_data.get("tool")
     ann.structure_smiles = ann_data.get("structure_smiles")
     ann.structure_inchi = ann_data.get("structure_inchi")
     ann.database_identifiers = ann_data.get("database_identifiers") or []
@@ -191,7 +202,8 @@ class TestBuildMztabm(unittest.TestCase):
     def test_metadata_fields(self):
         result = self._build()
         mtd = result.metadata
-        self.assertEqual(mtd.mztab_version, "2.0.0-M")
+        self.assertEqual(mtd.mztab_version, "2.1.0-M")
+        self.assertEqual(mtd.mztab_profile, "M+S+F+E")
         self.assertEqual(mtd.mztab_id, self.featuretable_id)
         self.assertEqual(mtd.title, self.project.name)
         self.assertEqual(mtd.description, self.project_info.description)
@@ -304,6 +316,20 @@ class TestBuildMztabm(unittest.TestCase):
                 f"study_variable {sv.id!r} description does not match name",
             )
 
+    def test_study_variable_groups_follow_sample_attribute_names(self):
+        """MetaboScape sample attribute names must become study_variable_group names."""
+        result = self._build()
+        group_names = [svg.name.name for svg in result.metadata.study_variable_group]
+        self.assertEqual(group_names, ["source"])
+
+    def test_study_variables_link_back_to_their_group(self):
+        result = self._build()
+        groups = {svg.id: svg for svg in result.metadata.study_variable_group}
+        for sv in result.metadata.study_variable:
+            self.assertEqual(len(sv.group_refs), 1)
+            group = groups[sv.group_refs[0]]
+            self.assertIn(sv.id, group.study_variable_refs)
+
     def test_study_variable_assay_refs_match_attribute_values(self):
         """Each study_variable's assay_refs must include only assays from samples
         that carry the matching attribute value."""
@@ -330,6 +356,50 @@ class TestBuildMztabm(unittest.TestCase):
             self.assertIsNotNone(sv.variation_function)
             self.assertEqual(sv.variation_function.cv_accession, "MS:1002963")
             self.assertEqual(sv.variation_function.name, "variation coefficient")
+
+    def test_multiple_experimental_factors_create_multiple_groups(self):
+        """Multiple sample attributes must be encoded as separate study_variable_groups."""
+        import metaPyScape
+        from mtbsccli.convert import build_mztabm
+
+        self.project_info.attribute = []
+        for name, options in (
+            ("source", ["OS", "NS"]),
+            ("timepoint", ["0", "1"]),
+        ):
+            attr_type = metaPyScape.SampleAttributeType()
+            attr_type.name = name
+            attr_type.detailed_attribute_options = []
+            for option_name in options:
+                option = metaPyScape.SampleAttributeOption()
+                option.name = option_name
+                attr_type.detailed_attribute_options.append(option)
+            self.project_info.attribute.append(attr_type)
+
+        self.samples[0].attributes.append(metaPyScape.SampleAttribute(name="timepoint", value="0"))
+        self.samples[1].attributes.append(metaPyScape.SampleAttribute(name="timepoint", value="1"))
+
+        result = build_mztabm(
+            project=self.project,
+            project_info=self.project_info,
+            feature_table=self.feature_table,
+            samples=self.samples,
+            intensity_matrix=self.intensity_matrix,
+            featuretable_id=self.featuretable_id,
+        )
+
+        group_names = [svg.name.name for svg in result.metadata.study_variable_group]
+        self.assertEqual(group_names, ["source", "timepoint"])
+        study_variables = {sv.name: sv for sv in result.metadata.study_variable}
+        self.assertEqual(study_variables["OS"].group_refs, [1])
+        self.assertEqual(study_variables["NS"].group_refs, [1])
+        self.assertEqual(study_variables["0"].group_refs, [2])
+        self.assertEqual(study_variables["1"].group_refs, [2])
+        timepoint_group = result.metadata.study_variable_group[1]
+        self.assertEqual(
+            {study_variables["0"].id, study_variables["1"].id},
+            set(timepoint_group.study_variable_refs),
+        )
 
     def test_sample_entries_in_metadata(self):
         """MTD must not contain any mzTab Sample entries."""
@@ -364,6 +434,8 @@ class TestBuildMztabm(unittest.TestCase):
         )
         self.assertEqual(len(result.metadata.study_variable), 1)
         self.assertEqual(result.metadata.study_variable[0].name, "undefined")
+        self.assertEqual(len(result.metadata.study_variable_group), 1)
+        self.assertEqual(result.metadata.study_variable_group[0].name.name, "undefined")
         n_assays = len(result.metadata.assay)
         self.assertEqual(
             result.metadata.study_variable[0].assay_refs,
@@ -612,6 +684,11 @@ class TestBuildMztabm(unittest.TestCase):
         try:
             _ = mztabm.write(result, path, format="tsv")
             self.assertTrue(os.path.exists(path))
+            with open(path) as fh:
+                content = fh.read()
+            self.assertIn("MTD\tmzTab-profile\tM+S+F+E", content)
+            self.assertIn("study_variable_group[1]-study_variable_refs", content)
+            self.assertIn("SEH\t", content)
         finally:
             os.unlink(path)
 
@@ -627,6 +704,27 @@ class TestBuildMztabm(unittest.TestCase):
             self.assertTrue(os.path.exists(path))
         finally:
             os.unlink(path)
+
+    def test_small_molecule_evidence_count_matches_features(self):
+        result = self._build()
+        self.assertEqual(
+            len(result.small_molecule_evidence), len(self.feature_table)
+        )
+
+    def test_smf_links_to_sme(self):
+        result = self._build()
+        for idx, smf in enumerate(result.small_molecule_feature, start=1):
+            self.assertEqual(smf.sme_id_refs, [idx])
+
+    def test_sme_required_fields_are_populated(self):
+        result = self._build()
+        sme = result.small_molecule_evidence[0]
+        self.assertEqual(sme.sme_id, 1)
+        self.assertEqual(sme.evidence_input_id, self.feature_table[0].id)
+        self.assertIsNotNone(sme.database_identifier)
+        self.assertIsNotNone(sme.exp_mass_to_charge)
+        self.assertEqual(sme.rank, 1)
+        self.assertTrue(sme.spectra_references)
 
 
 # ---------------------------------------------------------------------------

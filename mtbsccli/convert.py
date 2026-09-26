@@ -5,9 +5,10 @@ from __future__ import annotations
 
 import re
 import urllib.parse
-from typing import Dict, List, Optional
+from typing import Annotated, Dict, List, Literal, Optional, Tuple
 
 import metaPyScape
+from pydantic import Field
 from mztab_m_io.model.common import (
     CV,
     Assay,
@@ -16,10 +17,14 @@ from mztab_m_io.model.common import (
     OptColumnMapping,
     Parameter,
     Software,
+    SpectraReference,
     StudyVariable,
+    StudyVariableGroup,
 )
 from mztab_m_io.model.mztabm import MzTabM
+from mztab_m_io.model.serialization import MetadataSerialization, ValidationPolicy
 from mztab_m_io.model.section.mtd import Metadata
+from mztab_m_io.model.section.sme import SmallMoleculeEvidence
 from mztab_m_io.model.section.smf import SmallMoleculeFeature
 from mztab_m_io.model.section.sml import SmallMoleculeSummary
 
@@ -45,6 +50,60 @@ _MS_CV = CV(
     version="4.1.38",
     uri="https://raw.githubusercontent.com/HUPO-PSI/psi-ms-CV/master/psi-ms.obo",
 )
+
+_STATO_CV = CV(
+    label="STATO",
+    full_name="Statistics Ontology",
+    version="2018-06-15",
+    uri="https://purl.obolibrary.org/obo/stato.owl",
+)
+
+_MZTAB_PROFILE = "M+S+F+E"
+_NULL_DATABASE_IDENTIFIER = "mtbsc:null"
+_CATEGORICAL_VARIABLE = Parameter(
+    cv_label="STATO",
+    cv_accession="STATO:0000252",
+    name="categorical variable",
+)
+_MEAN_FUNCTION = Parameter(
+    cv_label="MS",
+    cv_accession="MS:1002962",
+    name="mean",
+)
+_VARIATION_FUNCTION = Parameter(
+    cv_label="MS",
+    cv_accession="MS:1002963",
+    name="variation coefficient",
+)
+
+
+class StudyVariableGroup21(StudyVariableGroup):
+    study_variable_refs: Annotated[
+        Optional[List[int]],
+        Field(
+            description="The study variables belonging to this study variable group.",
+            json_schema_extra=MetadataSerialization(
+                referenced_field_name="study_variable",
+                list_concatenation_str="|",
+                validation_policy=ValidationPolicy(
+                    value_constraint="non-negative-integer"
+                ),
+            ).model_dump(),
+        ),
+    ] = None
+
+
+class Metadata21(Metadata):
+    mztab_profile: Annotated[
+        Optional[Literal["M+S+F+E"]],
+        Field(
+            alias="mzTab-profile",
+            description="Declared mzTab-M profile.",
+            json_schema_extra=MetadataSerialization(
+                validation_policy=ValidationPolicy(required=True)
+            ).model_dump(),
+        ),
+    ] = _MZTAB_PROFILE
 
 
 def _wrap(value) -> Optional[List]:
@@ -146,6 +205,126 @@ def _variation_coefficient(values: List[float]) -> Optional[float]:
     return std_dev / mean_val
 
 
+def _iter_sample_attributes(sample) -> List[Tuple[str, str]]:
+    """Return non-empty (name, value) sample attributes in their original order."""
+    attrs: List[Tuple[str, str]] = []
+    for attr in getattr(sample, "attributes", None) or []:
+        name = getattr(attr, "name", None)
+        value = getattr(attr, "value", None)
+        if name and value:
+            attrs.append((name, str(value)))
+    return attrs
+
+
+def _attribute_metadata(project_info) -> Tuple[List[str], Dict[str, List[str]]]:
+    """Return declared factor order and option order from ProjectInfo.attribute."""
+    factor_names: List[str] = []
+    factor_value_order: Dict[str, List[str]] = {}
+    for attr_type in getattr(project_info, "attribute", None) or []:
+        name = getattr(attr_type, "name", None)
+        if not name:
+            continue
+        factor_names.append(name)
+        factor_value_order[name] = [
+            option.name
+            for option in (getattr(attr_type, "detailed_attribute_options", None) or [])
+            if getattr(option, "name", None)
+        ]
+    return factor_names, factor_value_order
+
+
+def _build_study_variables(
+    analysis_ids: List[str],
+    analysis_to_sample: Dict[str, metaPyScape.Sample],
+    project_info: metaPyScape.ProjectInfo,
+) -> Tuple[List[StudyVariableGroup21], List[StudyVariable]]:
+    """Build mzTab-M 2.1 study_variable_group and study_variable metadata."""
+    factor_names, factor_value_order = _attribute_metadata(project_info)
+    factor_to_values: Dict[str, Dict[str, List[int]]] = {}
+
+    for assay_idx, aid in enumerate(analysis_ids, start=1):
+        parent_sample = analysis_to_sample.get(aid)
+        for factor_name, factor_value in _iter_sample_attributes(parent_sample):
+            if factor_name not in factor_to_values:
+                factor_to_values[factor_name] = {}
+            if factor_name not in factor_names:
+                factor_names.append(factor_name)
+            if factor_value not in factor_value_order.setdefault(factor_name, []):
+                factor_value_order[factor_name].append(factor_value)
+            factor_to_values[factor_name].setdefault(factor_value, []).append(assay_idx)
+
+    num_assays = len(analysis_ids) or 1
+    if not factor_to_values:
+        return (
+            [
+                StudyVariableGroup21(
+                    id=1,
+                    name=Parameter(name="undefined"),
+                    description="undefined",
+                    type=_CATEGORICAL_VARIABLE,
+                    datatype="xsd:string",
+                    study_variable_refs=[1],
+                )
+            ],
+            [
+                StudyVariable(
+                    id=1,
+                    name="undefined",
+                    description="undefined",
+                    group_refs=[1],
+                    assay_refs=list(range(1, num_assays + 1)),
+                    average_function=_MEAN_FUNCTION,
+                    variation_function=_VARIATION_FUNCTION,
+                )
+            ],
+        )
+
+    study_variable_groups: List[StudyVariableGroup21] = []
+    study_variables: List[StudyVariable] = []
+    study_variable_id = 1
+
+    for group_id, factor_name in enumerate(factor_names, start=1):
+        value_to_assay_ids = factor_to_values.get(factor_name)
+        if not value_to_assay_ids:
+            continue
+
+        member_ids: List[int] = []
+        ordered_values = factor_value_order.get(factor_name) or list(value_to_assay_ids.keys())
+        for factor_value in ordered_values:
+            assay_refs = value_to_assay_ids.get(factor_value)
+            if not assay_refs:
+                continue
+            member_ids.append(study_variable_id)
+            study_variables.append(
+                StudyVariable(
+                    id=study_variable_id,
+                    name=factor_value,
+                    description=factor_value,
+                    group_refs=[group_id],
+                    assay_refs=assay_refs,
+                    average_function=_MEAN_FUNCTION,
+                    variation_function=_VARIATION_FUNCTION,
+                )
+            )
+            study_variable_id += 1
+
+        study_variable_groups.append(
+            StudyVariableGroup21(
+                id=group_id,
+                name=Parameter(name=factor_name),
+                description=factor_name,
+                type=_CATEGORICAL_VARIABLE,
+                datatype="xsd:string",
+                study_variable_refs=member_ids,
+            )
+        )
+
+    if not study_variables:
+        return _build_study_variables([], {}, metaPyScape.ProjectInfo())
+
+    return study_variable_groups, study_variables
+
+
 def build_mztabm(
     project: metaPyScape.Project,
     project_info: metaPyScape.ProjectInfo,
@@ -231,66 +410,11 @@ def build_mztabm(
         assays.append(Assay(id=idx, name=name, ms_run_ref=[idx]))
 
     num_assays = len(assays) or 1
-
-    # Build study_variable list grouped by unique attribute value.
-    # Each distinct SampleAttribute.value becomes one StudyVariable whose
-    # assay_refs contains every assay whose parent sample carries that value.
-    # When no attributes are present a single "undefined" fallback is used.
-    value_to_assay_ids: Dict[str, List[int]] = {}
-    for assay_idx, aid in enumerate(analysis_ids, start=1):
-        parent_sample = analysis_to_sample.get(aid)
-        attrs = (parent_sample.attributes or []) if parent_sample else []
-        for attr in attrs:
-            if attr.value:
-                value_to_assay_ids.setdefault(attr.value, []).append(assay_idx)
-
-    if value_to_assay_ids:
-        study_variables = [
-            StudyVariable(
-                id=sv_idx,
-                name=sv_value,
-                description=sv_value,
-                assay_refs=sv_assay_ids,
-                average_function=Parameter(
-                    cv_label="MS",
-                    cv_accession="MS:1002962",
-                    name="mean",
-                ),
-                variation_function=Parameter(
-                    cv_label="MS",
-                    cv_accession="MS:1002963",
-                    name="variation coefficient",
-                ),
-            )
-            for sv_idx, (sv_value, sv_assay_ids) in enumerate(
-                value_to_assay_ids.items(), start=1
-            )
-        ]
-    else:
-        study_variables = [
-            StudyVariable(
-                id=1,
-                name="undefined",
-                description="undefined",
-                assay_refs=list(range(1, num_assays + 1)),
-                average_function=Parameter(
-                    cv_label="MS",
-                    cv_accession="MS:1002962",
-                    name="mean",
-                ),
-                variation_function=Parameter(
-                    cv_label="MS",
-                    cv_accession="MS:1002963",
-                    name="variation coefficient",
-                ),
-                factors=[
-                    Parameter(
-                        cv_label="MS", cv_accession="MS:1001808", name="undefined"
-                    )
-                ],
-            )
-        ]
-    num_study_variables = len(study_variables)
+    study_variable_groups, study_variables = _build_study_variables(
+        analysis_ids=analysis_ids,
+        analysis_to_sample=analysis_to_sample,
+        project_info=project_info,
+    )
 
     title = getattr(project, "name", None) or featuretable_id
     description = (
@@ -324,8 +448,9 @@ def build_mztabm(
             )
         )
 
-    MTD = Metadata(
-        mztab_version="2.0.0-M",
+    MTD = Metadata21(
+        mztab_version="2.1.0-M",
+        mztab_profile=_MZTAB_PROFILE,
         mztab_id=featuretable_id,
         title=title,
         description=description,
@@ -337,8 +462,9 @@ def build_mztabm(
         software=software_list,
         ms_run=ms_runs,
         assay=assays,
+        study_variable_group=study_variable_groups,
         study_variable=study_variables,
-        cv=[_MS_CV],
+        cv=[_MS_CV, _STATO_CV],
         small_molecule_quantification_unit=Parameter(
             cv_label="MS",
             cv_accession="MS:1002887",
@@ -385,6 +511,7 @@ def build_mztabm(
 
     sml_list: List[SmallMoleculeSummary] = []
     smf_list: List[SmallMoleculeFeature] = []
+    sme_list: List[SmallMoleculeEvidence] = []
     include_opt_ccs = any(
         getattr(_primary_ion(feature), "ccs", None) is not None
         for feature in (feature_table or [])
@@ -465,19 +592,60 @@ def build_mztabm(
         smf = SmallMoleculeFeature(
             smf_id=sml_idx,
             sml_id_refs=[sml_idx],
+            sme_id_refs=[sml_idx],
             adduct_ion=ion.ion_notation if ion else None,
             exp_mass_to_charge=ion.mz if ion else None,
-            charge=1,
+            charge=abs(_parse_charge(ion.ion_notation if ion else None) or 1),
             retention_time_in_seconds=feature.rt_in_seconds,
             abundance_assay=abundance,
             opt=smf_opt,
         )
         smf_list.append(smf)
 
+        evidence_ms_run_refs = [
+            SpectraReference(
+                ms_run=assay_idx,
+                reference=f"analysis={analysis_name.get(aid, aid)}",
+            )
+            for assay_idx, aid in enumerate(analysis_ids, start=1)
+        ] or [SpectraReference(ms_run=1, reference="analysis=undefined")]
+        sme_list.append(
+            SmallMoleculeEvidence(
+                sme_id=sml_idx,
+                evidence_input_id=feature.id or f"feature_{sml_idx}",
+                database_identifier=db_identifier or _NULL_DATABASE_IDENTIFIER,
+                chemical_formula=chemical_formula,
+                smiles=smiles,
+                inchi=inchi,
+                chemical_name=chemical_name,
+                adduct_ion=ion.ion_notation if ion else None,
+                exp_mass_to_charge=(ion.mz if ion and ion.mz is not None else feature.mass),
+                charge=abs(_parse_charge(ion.ion_notation if ion else None) or 1),
+                theoretical_mass_to_charge=(
+                    ion.mz if ion and ion.mz is not None else feature.mass
+                ),
+                spectra_references=evidence_ms_run_refs,
+                identification_method=Parameter(name=(ann.tool if ann else None) or "MetaboScape"),
+                ms_level=Parameter(
+                    cv_label="MS",
+                    cv_accession="MS:1000511",
+                    name="ms level",
+                    value=(
+                        "2"
+                        if ann and getattr(ann, "annotated_ms_ms_fragment_details", None)
+                        else "1"
+                    ),
+                ),
+                rank=1,
+                opt=[OptColumnMapping(identifier="featureId", value=feature.id)],
+            )
+        )
+
     return MzTabM(
         metadata=MTD,
         small_molecule_summary=sml_list,
         small_molecule_feature=smf_list,
+        small_molecule_evidence=sme_list,
     )
 
 
