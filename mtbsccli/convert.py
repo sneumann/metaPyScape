@@ -239,22 +239,9 @@ def _build_study_variables(
     project_info: metaPyScape.ProjectInfo,
 ) -> Tuple[List[StudyVariableGroup21], List[StudyVariable]]:
     """Build mzTab-M 2.1 study_variable_group and study_variable metadata."""
-    factor_names, factor_value_order = _attribute_metadata(project_info)
-    factor_to_values: Dict[str, Dict[str, List[int]]] = {}
-
-    for assay_idx, aid in enumerate(analysis_ids, start=1):
-        parent_sample = analysis_to_sample.get(aid)
-        for factor_name, factor_value in _iter_sample_attributes(parent_sample):
-            if factor_name not in factor_to_values:
-                factor_to_values[factor_name] = {}
-            if factor_name not in factor_names:
-                factor_names.append(factor_name)
-            if factor_value not in factor_value_order.setdefault(factor_name, []):
-                factor_value_order[factor_name].append(factor_value)
-            factor_to_values[factor_name].setdefault(factor_value, []).append(assay_idx)
-
     num_assays = len(analysis_ids) or 1
-    if not factor_to_values:
+
+    def _undefined_design() -> Tuple[List[StudyVariableGroup21], List[StudyVariable]]:
         return (
             [
                 StudyVariableGroup21(
@@ -278,6 +265,23 @@ def _build_study_variables(
                 )
             ],
         )
+
+    factor_names, factor_value_order = _attribute_metadata(project_info)
+    factor_to_values: Dict[str, Dict[str, List[int]]] = {}
+
+    for assay_idx, aid in enumerate(analysis_ids, start=1):
+        parent_sample = analysis_to_sample.get(aid)
+        for factor_name, factor_value in _iter_sample_attributes(parent_sample):
+            if factor_name not in factor_to_values:
+                factor_to_values[factor_name] = {}
+            if factor_name not in factor_names:
+                factor_names.append(factor_name)
+            if factor_value not in factor_value_order.setdefault(factor_name, []):
+                factor_value_order[factor_name].append(factor_value)
+            factor_to_values[factor_name].setdefault(factor_value, []).append(assay_idx)
+
+    if not factor_to_values:
+        return _undefined_design()
 
     study_variable_groups: List[StudyVariableGroup21] = []
     study_variables: List[StudyVariable] = []
@@ -320,7 +324,7 @@ def _build_study_variables(
         )
 
     if not study_variables:
-        return _build_study_variables([], {}, metaPyScape.ProjectInfo())
+        return _undefined_design()
 
     return study_variable_groups, study_variables
 
@@ -608,7 +612,21 @@ def build_mztabm(
                 reference=f"analysis={analysis_name.get(aid, aid)}",
             )
             for assay_idx, aid in enumerate(analysis_ids, start=1)
-        ] or [SpectraReference(ms_run=1, reference="analysis=undefined")]
+            if assay_idx - 1 < len(abundance) and abundance[assay_idx - 1] is not None
+        ]
+        if not evidence_ms_run_refs:
+            if analysis_ids:
+                fallback_analysis_id = analysis_ids[0]
+                evidence_ms_run_refs = [
+                    SpectraReference(
+                        ms_run=1,
+                        reference=f"analysis={analysis_name.get(fallback_analysis_id, fallback_analysis_id)}",
+                    )
+                ]
+            else:
+                evidence_ms_run_refs = [
+                    SpectraReference(ms_run=1, reference="analysis=undefined")
+                ]
         sme_list.append(
             SmallMoleculeEvidence(
                 sme_id=sml_idx,
