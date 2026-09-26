@@ -530,6 +530,7 @@ def build_mztabm(
     for sml_idx, feature in enumerate(feature_table or [], start=1):
         ann = feature.primary_annotation
         ion = _primary_ion(feature)
+        resolved_feature_id = feature.id or f"feature_{sml_idx}"
 
         # Intensity row for this feature (None-padded if missing).
         row_idx = feature_id_to_row.get(feature.id)
@@ -590,7 +591,7 @@ def build_mztabm(
         )
         sml_list.append(sml)
 
-        smf_opt = [OptColumnMapping(identifier="featureId", value=feature.id)]
+        smf_opt = [OptColumnMapping(identifier="featureId", value=resolved_feature_id)]
         if include_opt_ccs:
             smf_opt.append(
                 OptColumnMapping(
@@ -614,11 +615,18 @@ def build_mztabm(
 
         evidence_ms_run_refs = None
         aq_scores = getattr(ann, "aq_scores", None) if ann else None
-        uses_msms = False
+        uses_msms = bool(
+            ann
+            and (
+                getattr(aq_scores, "msms_score", None) is not None
+                or getattr(aq_scores, "msms_aq_score", None) is not None
+                or getattr(ann, "annotated_ms_ms_fragment_details", None)
+            )
+        )
         sme_list.append(
             SmallMoleculeEvidence(
                 sme_id=sml_idx,
-                evidence_input_id=feature.id or f"feature_{sml_idx}",
+                evidence_input_id=resolved_feature_id,
                 database_identifier=db_identifier or _NULL_DATABASE_IDENTIFIER,
                 chemical_formula=chemical_formula,
                 smiles=smiles,
@@ -642,7 +650,7 @@ def build_mztabm(
                     value="2" if uses_msms else "1",
                 ),
                 rank=1,
-                opt=[OptColumnMapping(identifier="featureId", value=feature.id)],
+                opt=[OptColumnMapping(identifier="featureId", value=resolved_feature_id)],
             )
         )
 
