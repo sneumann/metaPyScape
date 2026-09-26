@@ -58,6 +58,11 @@ _STATO_CV = CV(
     uri="https://purl.obolibrary.org/obo/stato.owl",
 )
 
+_METABOSCAPE_PARAM = Parameter(
+    cv_label="MS",
+    cv_accession="MS:1002342",
+    name="MetaboScape",
+)
 _MZTAB_PROFILE = "M+S+F+E"
 _NULL_DATABASE_IDENTIFIER = "mtbsc:null"
 _CATEGORICAL_VARIABLE = Parameter(
@@ -432,9 +437,9 @@ def build_mztabm(
         Software(
             id=1,
             parameter=Parameter(
-                cv_label="MS",
-                cv_accession="MS:1000799",
-                name="MetaboScape",
+                cv_label=_METABOSCAPE_PARAM.cv_label,
+                cv_accession=_METABOSCAPE_PARAM.cv_accession,
+                name=_METABOSCAPE_PARAM.name,
                 value=software_version,
             ),
         )
@@ -487,9 +492,9 @@ def build_mztabm(
         database=[
             Database(
                 param=Parameter(
-                    cv_label="MS",
-                    cv_accession="MS:1000799",
-                    name="MetaboScape",
+                    cv_label=_METABOSCAPE_PARAM.cv_label,
+                    cv_accession=_METABOSCAPE_PARAM.cv_accession,
+                    name=_METABOSCAPE_PARAM.name,
                     value=software_version,
                 ),
                 prefix="mtbsc",
@@ -612,6 +617,15 @@ def build_mztabm(
             if assay_idx - 1 < len(abundance) and abundance[assay_idx - 1] is not None
         ]
         theoretical_mass_to_charge = feature.mass if feature.mass is not None else None
+        aq_scores = getattr(ann, "aq_scores", None) if ann else None
+        uses_msms = bool(
+            ann
+            and (
+                getattr(aq_scores, "msms_score", None) is not None
+                or getattr(aq_scores, "msms_aq_score", None) is not None
+                or getattr(ann, "annotated_ms_ms_fragment_details", None)
+            )
+        )
         sme_list.append(
             SmallMoleculeEvidence(
                 sme_id=sml_idx,
@@ -627,20 +641,16 @@ def build_mztabm(
                 theoretical_mass_to_charge=theoretical_mass_to_charge,
                 spectra_references=evidence_ms_run_refs or None,
                 identification_method=Parameter(
-                    cv_label="MS",
-                    cv_accession="MS:1000799",
-                    name="MetaboScape",
-                    value=(ann.tool if ann and ann.tool else software_version),
+                    cv_label=_METABOSCAPE_PARAM.cv_label,
+                    cv_accession=_METABOSCAPE_PARAM.cv_accession,
+                    name=_METABOSCAPE_PARAM.name,
+                    value=software_version,
                 ),
                 ms_level=Parameter(
                     cv_label="MS",
                     cv_accession="MS:1000511",
                     name="ms level",
-                    value=(
-                        "2"
-                        if ann and getattr(ann, "annotated_ms_ms_fragment_details", None)
-                        else "1"
-                    ),
+                    value="2" if uses_msms else "1",
                 ),
                 rank=1,
                 opt=[OptColumnMapping(identifier="featureId", value=feature.id)],

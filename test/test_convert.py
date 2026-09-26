@@ -87,6 +87,12 @@ def _make_annotation(ann_data: dict):
     ann.name = ann_data.get("name")
     ann.formula = ann_data.get("formula")
     ann.tool = ann_data.get("tool")
+    aq_scores_data = ann_data.get("aq_scores")
+    if aq_scores_data:
+        aq_scores = metaPyScape.AQScores()
+        aq_scores.msms_aq_score = aq_scores_data.get("msms_aq_score")
+        aq_scores.msms_score = aq_scores_data.get("msms_score")
+        ann.aq_scores = aq_scores
     ann.structure_smiles = ann_data.get("structure_smiles")
     ann.structure_inchi = ann_data.get("structure_inchi")
     ann.database_identifiers = ann_data.get("database_identifiers") or []
