@@ -611,11 +611,6 @@ def build_mztabm(
         smf_list.append(smf)
 
         evidence_ms_run_refs = None
-        theoretical_mass_to_charge = (
-            feature.mass
-            if ion and ion.mz is not None and feature.mass is not None
-            else None
-        )
         aq_scores = getattr(ann, "aq_scores", None) if ann else None
         uses_msms = bool(
             ann
@@ -637,7 +632,7 @@ def build_mztabm(
                 adduct_ion=ion.ion_notation if ion else None,
                 exp_mass_to_charge=(ion.mz if ion and ion.mz is not None else feature.mass),
                 charge=abs(_parse_charge(ion.ion_notation if ion else None) or 1),
-                theoretical_mass_to_charge=theoretical_mass_to_charge,
+                theoretical_mass_to_charge=None,
                 spectra_references=evidence_ms_run_refs,
                 identification_method=Parameter(
                     cv_label=_METABOSCAPE_PARAM.cv_label,
