@@ -290,8 +290,9 @@ def _build_study_variables(
     study_variable_groups: List[StudyVariableGroup21] = []
     study_variables: List[StudyVariable] = []
     study_variable_id = 1
+    group_id = 1
 
-    for group_id, factor_name in enumerate(factor_names, start=1):
+    for factor_name in factor_names:
         value_to_assay_ids = factor_to_values.get(factor_name)
         if not value_to_assay_ids:
             continue
@@ -326,6 +327,7 @@ def _build_study_variables(
                 study_variable_refs=member_ids,
             )
         )
+        group_id += 1
 
     if not study_variables:
         return _undefined_design()
@@ -612,14 +614,7 @@ def build_mztabm(
 
         evidence_ms_run_refs = None
         aq_scores = getattr(ann, "aq_scores", None) if ann else None
-        uses_msms = bool(
-            ann
-            and (
-                getattr(aq_scores, "msms_score", None) is not None
-                or getattr(aq_scores, "msms_aq_score", None) is not None
-                or getattr(ann, "annotated_ms_ms_fragment_details", None)
-            )
-        )
+        uses_msms = False
         sme_list.append(
             SmallMoleculeEvidence(
                 sme_id=sml_idx,
