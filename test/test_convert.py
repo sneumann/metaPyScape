@@ -730,7 +730,7 @@ class TestBuildMztabm(unittest.TestCase):
         self.assertIsNotNone(sme.database_identifier)
         self.assertIsNotNone(sme.exp_mass_to_charge)
         self.assertEqual(sme.rank, 1)
-        self.assertTrue(sme.spectra_references)
+        self.assertIsNone(sme.spectra_references)
 
 
 # ---------------------------------------------------------------------------
