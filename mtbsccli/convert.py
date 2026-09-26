@@ -607,26 +607,19 @@ def build_mztabm(
         smf_list.append(smf)
 
         evidence_ms_run_refs = [
-            SpectraReference(
-                ms_run=assay_idx,
-                reference=f"analysis={analysis_name.get(aid, aid)}",
-            )
-            for assay_idx, aid in enumerate(analysis_ids, start=1)
+            SpectraReference(ms_run=assay_idx)
+            for assay_idx, _aid in enumerate(analysis_ids, start=1)
             if assay_idx - 1 < len(abundance) and abundance[assay_idx - 1] is not None
         ]
         if not evidence_ms_run_refs:
             if analysis_ids:
-                fallback_analysis_id = analysis_ids[0]
-                evidence_ms_run_refs = [
-                    SpectraReference(
-                        ms_run=1,
-                        reference=f"analysis={analysis_name.get(fallback_analysis_id, fallback_analysis_id)}",
-                    )
-                ]
+                evidence_ms_run_refs = [SpectraReference(ms_run=1)]
             else:
-                evidence_ms_run_refs = [
-                    SpectraReference(ms_run=1, reference="analysis=undefined")
-                ]
+                evidence_ms_run_refs = [SpectraReference(ms_run=1)]
+
+        theoretical_mass_to_charge = (
+            feature.mass if chemical_formula and feature.mass is not None else None
+        )
         sme_list.append(
             SmallMoleculeEvidence(
                 sme_id=sml_idx,
@@ -639,11 +632,14 @@ def build_mztabm(
                 adduct_ion=ion.ion_notation if ion else None,
                 exp_mass_to_charge=(ion.mz if ion and ion.mz is not None else feature.mass),
                 charge=abs(_parse_charge(ion.ion_notation if ion else None) or 1),
-                theoretical_mass_to_charge=(
-                    ion.mz if ion and ion.mz is not None else feature.mass
-                ),
+                theoretical_mass_to_charge=theoretical_mass_to_charge,
                 spectra_references=evidence_ms_run_refs,
-                identification_method=Parameter(name=(ann.tool if ann else None) or "MetaboScape"),
+                identification_method=Parameter(
+                    cv_label="MS",
+                    cv_accession="MS:1000799",
+                    name="MetaboScape",
+                    value=(ann.tool if ann and ann.tool else software_version),
+                ),
                 ms_level=Parameter(
                     cv_label="MS",
                     cv_accession="MS:1000511",
