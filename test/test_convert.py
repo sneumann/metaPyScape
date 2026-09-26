@@ -328,13 +328,10 @@ class TestBuildMztabm(unittest.TestCase):
         group_names = [svg.name.name for svg in result.metadata.study_variable_group]
         self.assertEqual(group_names, ["source"])
 
-    def test_study_variables_link_back_to_their_group(self):
+    def test_study_variables_do_not_emit_group_refs(self):
         result = self._build()
-        groups = {svg.id: svg for svg in result.metadata.study_variable_group}
         for sv in result.metadata.study_variable:
-            self.assertEqual(len(sv.group_refs), 1)
-            group = groups[sv.group_refs[0]]
-            self.assertIn(sv.id, group.study_variable_refs)
+            self.assertIsNone(sv.group_refs)
 
     def test_study_variable_assay_refs_match_attribute_values(self):
         """Each study_variable's assay_refs must include only assays from samples
@@ -396,14 +393,15 @@ class TestBuildMztabm(unittest.TestCase):
 
         group_names = [svg.name.name for svg in result.metadata.study_variable_group]
         self.assertEqual(group_names, ["source", "timepoint"])
-        study_variables = {sv.name: sv for sv in result.metadata.study_variable}
-        self.assertEqual(study_variables["OS"].group_refs, [1])
-        self.assertEqual(study_variables["NS"].group_refs, [1])
-        self.assertEqual(study_variables["0"].group_refs, [2])
-        self.assertEqual(study_variables["1"].group_refs, [2])
+        study_variables = {sv.name: sv.id for sv in result.metadata.study_variable}
+        source_group = result.metadata.study_variable_group[0]
         timepoint_group = result.metadata.study_variable_group[1]
         self.assertEqual(
-            {study_variables["0"].id, study_variables["1"].id},
+            {f"study_variable[{study_variables['OS']}]", f"study_variable[{study_variables['NS']}]"},
+            set(source_group.study_variable_refs),
+        )
+        self.assertEqual(
+            {f"study_variable[{study_variables['0']}]", f"study_variable[{study_variables['1']}]"},
             set(timepoint_group.study_variable_refs),
         )
 
@@ -691,10 +689,15 @@ class TestBuildMztabm(unittest.TestCase):
             _ = mztabm.write(result, path, format="tsv")
             self.assertTrue(os.path.exists(path))
             with open(path) as fh:
-                content = fh.read()
-            self.assertIn("MTD\tmzTab-profile\tM+S+F+E", content)
-            self.assertIn("study_variable_group[1]-study_variable_refs", content)
-            self.assertIn("SEH\t", content)
+                lines = fh.read().splitlines()
+            version_idx = lines.index("MTD\tmzTab-version\t2.1.0-M")
+            self.assertEqual(lines[version_idx + 1], "MTD\tmzTab-profile\tM+S+F+E")
+            self.assertIn(
+                "MTD\tstudy_variable_group[1]-study_variable_refs\tstudy_variable[1]|study_variable[2]",
+                lines,
+            )
+            self.assertFalse(any("-group_refs" in line for line in lines))
+            self.assertTrue(any(line.startswith("SEH\t") for line in lines))
         finally:
             os.unlink(path)
 
@@ -723,14 +726,31 @@ class TestBuildMztabm(unittest.TestCase):
             self.assertEqual(smf.sme_id_refs, [idx])
 
     def test_sme_required_fields_are_populated(self):
+        from mtbsccli.convert import _theoretical_mass_to_charge
+
         result = self._build()
         sme = result.small_molecule_evidence[0]
         self.assertEqual(sme.sme_id, 1)
         self.assertEqual(sme.evidence_input_id, self.feature_table[0].id)
         self.assertIsNotNone(sme.database_identifier)
         self.assertIsNotNone(sme.exp_mass_to_charge)
+        self.assertIsNotNone(sme.theoretical_mass_to_charge)
+        self.assertEqual(sme.spectra_references[0].ms_run_ref, 1)
+        self.assertEqual(sme.spectra_references[0].reference, "index=5")
+        self.assertEqual(sme.id_confidence_measure, [0.0])
         self.assertEqual(sme.rank, 1)
-        self.assertIsNone(sme.spectra_references)
+        by_identifier = {item.identifier: item.value for item in sme.opt}
+        self.assertEqual(by_identifier["featureId"], sme.evidence_input_id)
+
+        annotated = result.small_molecule_evidence[42]
+        self.assertEqual(
+            annotated.theoretical_mass_to_charge,
+            _theoretical_mass_to_charge("C10H9N5O", "[M+H]+", annotated.exp_mass_to_charge),
+        )
+        self.assertEqual(
+            annotated.id_confidence_measure,
+            [self.feature_table[42].primary_annotation.aq_scores.msms_score],
+        )
 
 
 # ---------------------------------------------------------------------------
