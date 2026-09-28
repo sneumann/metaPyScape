@@ -481,6 +481,15 @@ class TestBuildMztabm(unittest.TestCase):
         self.assertIsNone(sml.chemical_name)
         self.assertIsNone(sml.chemical_formula)
 
+    def test_metabolite_names_replace_pipe_symbols(self):
+        self.feature_table[0].primary_annotation = self.feature_table[42].primary_annotation
+        self.feature_table[0].primary_annotation.name = "Alpha|Beta"
+        result = self._build()
+        sml = result.small_molecule_summary[0]
+        sme = result.small_molecule_evidence[0]
+        self.assertEqual(sml.chemical_name, ["Alpha or Beta"])
+        self.assertEqual(sme.chemical_name, "Alpha or Beta")
+
     def test_sml_theoretical_neutral_mass_null_when_no_formula(self):
         """theoretical_neutral_mass must be None when chemical_formula is None."""
         result = self._build()

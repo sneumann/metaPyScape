@@ -177,6 +177,13 @@ def _wrap(value) -> Optional[List]:
     return [value] if value is not None else None
 
 
+def _sanitize_metabolite_name(name: Optional[str]) -> Optional[str]:
+    """Replace mzTab-reserved pipe separators in metabolite names."""
+    if name is None:
+        return None
+    return name.replace("|", " or ")
+
+
 def _primary_ion(feature):
     """Return the main FeatureIon for a feature, or None."""
     if not feature.feature_ions:
@@ -660,7 +667,7 @@ def build_mztabm(
 
         # Chemical annotation fields.
         chemical_formula = ann.formula if ann else None
-        chemical_name = ann.name if ann else None
+        chemical_name = _sanitize_metabolite_name(ann.name if ann else None)
         smiles = ann.structure_smiles if ann else None
         inchi = ann.structure_inchi if ann else None
 
