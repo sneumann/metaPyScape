@@ -710,11 +710,11 @@ def build_mztabm(
         )
         sml_list.append(sml)
 
-        smf_opt = [OptColumnMapping(identifier="featureId", value=resolved_feature_id)]
+        smf_opt = [OptColumnMapping(identifier="global_featureId", value=resolved_feature_id)]
         if include_opt_ccs:
             smf_opt.append(
                 OptColumnMapping(
-                    identifier="CCS",
+                    identifier="global_CCS",
                     value=None if ion is None or ion.ccs is None else str(ion.ccs),
                 )
             )
@@ -777,7 +777,7 @@ def build_mztabm(
                 ),
                 id_confidence_measure=[getattr(aq_scores, "msms_score", None) or 0.0],
                 rank=1,
-                opt=[OptColumnMapping(identifier="featureId", value=resolved_feature_id)],
+                opt=[OptColumnMapping(identifier="global_featureId", value=resolved_feature_id)],
             )
         )
 

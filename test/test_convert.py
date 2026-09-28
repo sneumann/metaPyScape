@@ -609,16 +609,16 @@ class TestBuildMztabm(unittest.TestCase):
         self.assertAlmostEqual(smf.exp_mass_to_charge, 104.10685559415053, places=3)
 
     def test_smf_opt_feature_id_column_present(self):
-        """SMF rows must include opt_featureId with the MetaboScape feature id."""
+        """SMF rows must include opt_global_featureId with the MetaboScape feature id."""
         result = self._build()
         smf0 = result.small_molecule_feature[0]
         self.assertIsNotNone(smf0.opt)
         by_identifier = {item.identifier: item.value for item in smf0.opt}
-        self.assertIn("featureId", by_identifier)
-        self.assertEqual(by_identifier["featureId"], self.feature_table[0].id)
+        self.assertIn("global_featureId", by_identifier)
+        self.assertEqual(by_identifier["global_featureId"], self.feature_table[0].id)
 
     def test_smf_opt_ccs_column_present_when_available(self):
-        """SMF header should include opt_CCS when any feature ion has CCS."""
+        """SMF header should include opt_global_CCS when any feature ion has CCS."""
         import mztab_m_io as mztabm
 
         result = self._build()
@@ -628,13 +628,13 @@ class TestBuildMztabm(unittest.TestCase):
             mztabm.write(result, path, format="tsv")
             with open(path) as fh:
                 sfh = [line for line in fh if line.startswith("SFH\t")][0]
-            self.assertIn("opt_featureId", sfh)
-            self.assertIn("opt_CCS", sfh)
+            self.assertIn("opt_global_featureId", sfh)
+            self.assertIn("opt_global_CCS", sfh)
         finally:
             os.unlink(path)
 
     def test_smf_opt_ccs_column_omitted_when_unavailable(self):
-        """SMF header should omit opt_CCS when no feature ion has CCS."""
+        """SMF header should omit opt_global_CCS when no feature ion has CCS."""
         import mztab_m_io as mztabm
 
         for feat in self.feature_table:
@@ -647,8 +647,8 @@ class TestBuildMztabm(unittest.TestCase):
             mztabm.write(result, path, format="tsv")
             with open(path) as fh:
                 sfh = [line for line in fh if line.startswith("SFH\t")][0]
-            self.assertIn("opt_featureId", sfh)
-            self.assertNotIn("opt_CCS", sfh)
+            self.assertIn("opt_global_featureId", sfh)
+            self.assertNotIn("opt_global_CCS", sfh)
         finally:
             os.unlink(path)
 
@@ -740,7 +740,7 @@ class TestBuildMztabm(unittest.TestCase):
         self.assertEqual(sme.id_confidence_measure, [0.0])
         self.assertEqual(sme.rank, 1)
         by_identifier = {item.identifier: item.value for item in sme.opt}
-        self.assertEqual(by_identifier["featureId"], sme.evidence_input_id)
+        self.assertEqual(by_identifier["global_featureId"], sme.evidence_input_id)
 
         annotated = result.small_molecule_evidence[42]
         self.assertEqual(
