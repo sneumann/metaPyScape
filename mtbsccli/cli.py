@@ -495,7 +495,17 @@ def convert2mztabm(
     samples_api = metaPyScape.SamplesApi(client)
 
     project = _call(project_api.retrieve_project, project_id)
-    project_info = _call(project_api.retrieve_project_info, project_id)
+    try:
+        project_info = project_api.retrieve_project_info(project_id)
+    except ApiException as exc:
+        # Some server versions (e.g. 2026b) fail here for projects whose
+        # station metadata is unavailable; the info is optional for conversion.
+        click.echo(
+            f"Warning: project info unavailable (API error {exc.status}); "
+            "continuing without it.",
+            err=True,
+        )
+        project_info = None
     feature_table = _call(featuretable_api.retrieve_feature_table, featuretable_id)
     samples = _call(samples_api.list_all_samples, featuretable_id)
     intensity_matrix = _call(
