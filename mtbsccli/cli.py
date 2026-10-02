@@ -35,6 +35,8 @@ Usage examples
 Global flags
 -------------
   --server / -s    Override server URL (or set env MTBSC_SERVER)
+  --logfile FILE   Append every server request and its status/error to FILE
+                   (the API key is never logged; nothing is logged without it)
   --output / -o    Output format: table (default), json, yaml, tsv
                    For convert2mztabm: json writes JSON mzTab-M; tsv/table write TSV.
 """
@@ -45,6 +47,8 @@ import getpass
 import importlib.metadata
 import os
 import sys
+import time
+from datetime import datetime, timezone
 from typing import Optional
 
 import click
@@ -75,6 +79,52 @@ def _get_pymztabm_version() -> str:
 # ---------------------------------------------------------------------------
 
 
+_LOGFILE: Optional[str] = None
+
+
+def _log(line: str) -> None:
+    """Append a timestamped line to the logfile (no-op without --logfile)."""
+    if not _LOGFILE:
+        return
+    stamp = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+    with open(_LOGFILE, "a", encoding="utf-8") as fh:
+        fh.write(f"{stamp} {line}\n")
+
+
+def _install_request_logging(client: metaPyScape.ApiClient) -> None:
+    """Log method, URL, status and error of every request; headers are omitted."""
+    rest_client = client.rest_client
+    original = rest_client.request
+
+    def logged_request(method, url, query_params=None, *args, **kwargs):
+        started = time.monotonic()
+        shown = url
+        if query_params:
+            shown += "?" + "&".join(f"{k}={v}" for k, v in dict(query_params).items()) \
+                if isinstance(query_params, dict) else ""
+        try:
+            resp = original(method, url, query_params, *args, **kwargs)
+        except ApiException as exc:
+            body = (exc.body or "")
+            if isinstance(body, bytes):
+                body = body.decode("utf-8", "replace")
+            _log(
+                f"{method} {shown} -> {exc.status} {exc.reason} "
+                f"({time.monotonic() - started:.2f}s) body={body.strip()[:2000]}"
+            )
+            raise
+        except Exception as exc:
+            _log(
+                f"{method} {shown} -> EXCEPTION {type(exc).__name__}: {exc} "
+                f"({time.monotonic() - started:.2f}s)"
+            )
+            raise
+        _log(f"{method} {shown} -> {resp.status} ({time.monotonic() - started:.2f}s)")
+        return resp
+
+    rest_client.request = logged_request
+
+
 def _make_client(server: Optional[str]) -> metaPyScape.ApiClient:
     """Build a configured ApiClient, exiting on missing credentials."""
     url = server or cfg.get_server_url()
@@ -99,11 +149,14 @@ def _make_client(server: Optional[str]) -> metaPyScape.ApiClient:
 
     configuration = metaPyScape.Configuration()
     configuration.host = url
-    return metaPyScape.ApiClient(
+    client = metaPyScape.ApiClient(
         configuration=configuration,
         header_name="api-key",
         header_value=api_key,
     )
+    if _LOGFILE:
+        _install_request_logging(client)
+    return client
 
 
 def _handle_api_error(exc: ApiException) -> None:
@@ -149,6 +202,12 @@ def _call(fn, *args, **kwargs):
     show_default=True,
     help="Output format. For convert2mztabm: json writes JSON mzTab-M; tsv/table write TSV.",
 )
+@click.option(
+    "--logfile",
+    type=click.Path(dir_okay=False, writable=True),
+    default=None,
+    help="Append all server requests and their status codes to FILE (API key not logged).",
+)
 @click.version_option(
     _MTBSCCLI_VERSION,
     "-v",
@@ -157,8 +216,12 @@ def _call(fn, *args, **kwargs):
     message=f"%(prog)s %(version)s  (pymzTabM {_get_pymztabm_version()})",
 )
 @click.pass_context
-def cli(ctx: click.Context, server: Optional[str], output: str) -> None:
+def cli(
+    ctx: click.Context, server: Optional[str], output: str, logfile: Optional[str]
+) -> None:
     """mtbsccli – read-only command-line client for MetaboScape."""
+    global _LOGFILE
+    _LOGFILE = logfile
     ctx.ensure_object(dict)
     ctx.obj["server"] = server
     ctx.obj["output"] = output
