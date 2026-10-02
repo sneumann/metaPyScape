@@ -37,10 +37,10 @@ class TestVersionFlag(unittest.TestCase):
         r = self._invoke("--version")
         self.assertIn("pymzTabM", r.output)
 
-    def test_version_string_is_0_1(self):
-        self.assertEqual(__version__, "0.1")
+    def test_version_string_is_bumped(self):
+        self.assertEqual(__version__, "0.2.0")
         r = self._invoke("--version")
-        self.assertIn("0.1", r.output)
+        self.assertIn("0.2.0", r.output)
 
 
 class TestHelpAlias(unittest.TestCase):
@@ -116,22 +116,22 @@ class TestBuildMztabmSecondSoftware(unittest.TestCase):
         self.assertEqual(mztab.metadata.software[0].parameter.name, "MetaboScape")
 
     def test_with_converter_version_yields_two_software(self):
-        mztab = self._build(converter_version="0.1")
+        mztab = self._build(converter_version="0.2.0")
         self.assertEqual(len(mztab.metadata.software), 2)
 
     def test_second_software_is_mtbsccli(self):
-        mztab = self._build(converter_version="0.1")
+        mztab = self._build(converter_version="0.2.0")
         sw2 = mztab.metadata.software[1]
         self.assertEqual(sw2.id, 2)
         self.assertEqual(sw2.parameter.name, "mtbsccli")
-        self.assertEqual(sw2.parameter.value, "0.1")
+        self.assertEqual(sw2.parameter.value, "0.2.0")
 
     def test_second_software_version_matches_input(self):
         mztab = self._build(converter_version="1.2.3")
         self.assertEqual(mztab.metadata.software[1].parameter.value, "1.2.3")
 
     def test_first_software_unchanged(self):
-        mztab = self._build(converter_version="0.1")
+        mztab = self._build(converter_version="0.2.0")
         sw1 = mztab.metadata.software[0]
         self.assertEqual(sw1.id, 1)
         self.assertEqual(sw1.parameter.name, "MetaboScape")

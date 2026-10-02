@@ -22,5 +22,13 @@
     }
   ],
   "creation_date": 1740738555157,
-  "attribute": []
+  "attribute": [
+    {
+      "name": "source",
+      "detailedAttributeOptions": [
+        {"name": "OS"},
+        {"name": "NS"}
+      ]
+    }
+  ]
 }
