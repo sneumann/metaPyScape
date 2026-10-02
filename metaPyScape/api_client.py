@@ -608,6 +608,11 @@ class ApiClient(object):
         if not klass.swagger_types and not self.__hasattr(klass, 'get_real_child_model'):
             return data
 
+        # Server versions differ in the type of some fields (e.g. Sample.volume
+        # is an object in 2025b but a plain number in 2026b); pass scalars through.
+        if not isinstance(data, (dict, list)):
+            return data
+
         kwargs = {}
         if klass.swagger_types is not None:
             for attr, attr_type in six.iteritems(klass.swagger_types):
