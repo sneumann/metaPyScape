@@ -498,14 +498,13 @@ def convert2mztabm(
     try:
         project_info = project_api.retrieve_project_info(project_id)
     except ApiException as exc:
-        # Some server versions (e.g. 2026b) fail here for projects whose
-        # station metadata is unavailable; the info is optional for conversion.
         click.echo(
-            f"Warning: project info unavailable (API error {exc.status}); "
-            "continuing without it.",
+            f"Error: could not retrieve project info for project {project_id} "
+            "(required for the sample attributes / study design of the mzTab-M "
+            "file). The server reported the following error:",
             err=True,
         )
-        project_info = None
+        _handle_api_error(exc)
     feature_table = _call(featuretable_api.retrieve_feature_table, featuretable_id)
     samples = _call(samples_api.list_all_samples, featuretable_id)
     intensity_matrix = _call(
